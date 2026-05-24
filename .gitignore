@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Bun / Node
+node_modules/
+
+# Secrets — committed: .env.example (template, no values)
+.env
+.env.*
+!.env.example
+
+# Local state (see docs/architecture/PROJECT_ARCHITECTURE.md → Storage)
+storage/
+
+# Generated
+*.db
+*.db-journal
+*.log
+dist/
+build/
