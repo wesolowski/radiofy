@@ -1,1 +1,10 @@
-export {};
+export { applyMigrations, openDb, openInMemoryDb } from './db.ts';
+export type { Db } from './db.ts';
+export { crawlRunsRepo } from './repos/crawl-runs.ts';
+export { matchesRepo } from './repos/matches.ts';
+export { playsRepo } from './repos/plays.ts';
+export { songsRepo } from './repos/songs.ts';
+export { syncRunsRepo } from './repos/sync-runs.ts';
+export { unmatchedRepo } from './repos/unmatched.ts';
+export * from './schema.ts';
+export { withTransaction } from './transaction.ts';
