@@ -34,7 +34,8 @@
       "dist",
       "build",
       ".claude/hooks",
-      ".env.example"
+      ".env.example",
+      "packages/*/migrations"
     ]
   }
 }
