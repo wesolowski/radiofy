@@ -6,5 +6,9 @@
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radiofy/shared": "workspace:*",
+    "cheerio": "^1.0.0"
   }
 }
