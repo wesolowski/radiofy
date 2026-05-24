@@ -1,0 +1,25 @@
+{
+  "name": "radiofy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "sync": "bun apps/worker/commands/sync.ts",
+    "crawl": "bun apps/worker/commands/crawl.ts",
+    "spotify:auth": "bun apps/worker/commands/spotify-auth.ts",
+    "overrides:validate": "bun apps/worker/commands/overrides-validate.ts",
+    "export-unmatched": "bun apps/worker/commands/export-unmatched.ts",
+    "export-playlist": "bun apps/worker/commands/export-playlist.ts",
+    "status": "bun apps/worker/commands/status.ts",
+    "prune-audit": "bun apps/worker/commands/prune-audit.ts",
+    "test:unit": "bun test packages",
+    "test:integration": "bun test tests/integration"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  }
+}
