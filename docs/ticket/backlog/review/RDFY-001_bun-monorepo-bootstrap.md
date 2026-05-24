@@ -42,7 +42,13 @@ The repository contains only documentation and the `.claude/` workflow tooling. 
   - **Committed** `.env.example` listing every env var the project consumes (with empty values + one-line comments). The real `.env` is gitignored.
   - **Committed** `docs/html/` directory preserved (parser test fixtures live here per RDFY-004)
   - `.gitignore` covers `storage/`, `node_modules/`, `*.db`, `*.log`, `.env` (but **not** `.env.example`)
-- **Out of scope (explicit)**: any business logic, database schema, Spotify integration, parser implementations. No code beyond `export {}` placeholders.
+  - **Test infrastructure (added mid-flight, per user request)**:
+    - `packages/<pkg>/test/` convention for unit tests (one placeholder in `packages/shared/test/bootstrap.test.ts` to make `bun test` exit 0)
+    - `tests/integration/` directory for env-gated Spotify integration tests (one placeholder `tests/integration/bootstrap.test.ts` using `test.skipIf(!RADIOFY_INTEGRATION)`)
+    - Root `package.json` adds `test:unit` and `test:integration` scripts
+    - `.env.example` documents `RADIOFY_INTEGRATION` and `RADIOFY_INTEGRATION_PLAYLIST`
+    - `CLAUDE.md → Tests` documents the two-layer convention
+- **Out of scope (explicit)**: any business logic, database schema, Spotify integration, parser implementations. No code beyond `export {}` placeholders and the two trivial test placeholders.
 
 ## References
 - `docs/architecture/PROJECT_ARCHITECTURE.md` → "Project Structure", "Technology Stack"
@@ -59,6 +65,9 @@ The repository contains only documentation and the `.claude/` workflow tooling. 
 - [ ] `docs/html/` directory exists and contains the seed fixture (`test.html`)
 - [ ] `config/stations.json` is valid JSON, contains an empty `[]` placeholder
 - [ ] `bun run sync` (and every other declared script) starts and prints a "not implemented yet" placeholder without crashing the script runner
+- [ ] `bun run test:unit` runs only the unit-test placeholder and exits 0
+- [ ] `bun run test:integration` *without* `RADIOFY_INTEGRATION=1` set runs the integration placeholder as `skip` and exits 0
+- [ ] `RADIOFY_INTEGRATION=1 bun run test:integration` runs the integration placeholder as a real pass and exits 0
 
 ## Verification (manual)
 1. Fresh `git clean -fdx && bun install` → no errors

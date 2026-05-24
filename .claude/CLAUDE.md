@@ -101,9 +101,24 @@ bunx tsc --noEmit
 ```
 
 ### Tests
-All tests:
+Two layers, separate directories:
+
+- **Unit tests** live next to the package they cover: `packages/<pkg>/test/*.test.ts`. They never hit the network — Spotify and HTTP fixtures are stubbed.
+- **Integration tests** live at the repo root in `tests/integration/*.test.ts`. They exercise the real Spotify API against a dedicated test playlist and are **env-gated**: skipped unless `RADIOFY_INTEGRATION=1` is set in the shell. CI never runs them.
+
+All tests (unit + skip-gated integration):
 ```bash
 bun test
+```
+
+Only unit tests:
+```bash
+bun run test:unit
+```
+
+Only integration tests (requires `RADIOFY_INTEGRATION=1` + a `.env` with valid Spotify credentials + an existing playlist named by `RADIOFY_INTEGRATION_PLAYLIST`):
+```bash
+RADIOFY_INTEGRATION=1 bun run test:integration
 ```
 
 Single test file:
