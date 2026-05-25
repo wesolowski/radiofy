@@ -17,6 +17,17 @@ export { type SpotifyFetchOptions, spotifyFetch } from './http.ts';
 export { jaroWinkler } from './jaro-winkler.ts';
 export { generateChallenge, generateState, generateVerifier } from './pkce.ts';
 export {
+  getPlaylistByName,
+  getPlaylistTracks,
+  PLAYLIST_TRACK_CAP,
+  PlaylistEmptyError,
+  PlaylistNotFoundError,
+  PlaylistOverCapError,
+  type PlaylistTrack,
+  type ReplaceResult,
+  replacePlaylistTracks,
+} from './playlist.ts';
+export {
   type ScoredCandidate,
   scoreCandidates,
   type ScoreInput,
