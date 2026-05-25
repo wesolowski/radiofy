@@ -60,6 +60,7 @@
       "name": "@radiofy/spotify",
       "version": "0.0.0",
       "dependencies": {
+        "@radiofy/normalizer": "workspace:*",
         "@radiofy/shared": "workspace:*",
       },
     },

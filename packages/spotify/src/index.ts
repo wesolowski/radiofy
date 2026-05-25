@@ -13,4 +13,14 @@ export {
 } from './auth-flow.ts';
 export { authPath, readAuth, type StoredAuth, writeAuth } from './auth-storage.ts';
 export { SpotifyAuthExpiredError, SpotifyTransientError } from './errors.ts';
+export { type SpotifyFetchOptions, spotifyFetch } from './http.ts';
+export { jaroWinkler } from './jaro-winkler.ts';
 export { generateChallenge, generateState, generateVerifier } from './pkce.ts';
+export {
+  type ScoredCandidate,
+  scoreCandidates,
+  type ScoreInput,
+  type SpotifyArtistRef,
+  type SpotifyTrackPayload,
+} from './score.ts';
+export { searchTrack, type SearchOptions } from './search.ts';
