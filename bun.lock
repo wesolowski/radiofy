@@ -13,6 +13,10 @@
     "apps/worker": {
       "name": "@radiofy/worker",
       "version": "0.0.0",
+      "dependencies": {
+        "@radiofy/shared": "workspace:*",
+        "@radiofy/spotify": "workspace:*",
+      },
     },
     "packages/database": {
       "name": "@radiofy/database",
@@ -55,6 +59,9 @@
     "packages/spotify": {
       "name": "@radiofy/spotify",
       "version": "0.0.0",
+      "dependencies": {
+        "@radiofy/shared": "workspace:*",
+      },
     },
   },
   "packages": {
