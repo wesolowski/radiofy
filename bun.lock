@@ -31,6 +31,11 @@
     "packages/matcher": {
       "name": "@radiofy/matcher",
       "version": "0.0.0",
+      "dependencies": {
+        "@radiofy/normalizer": "workspace:*",
+        "@radiofy/shared": "workspace:*",
+        "zod": "^3.23.8",
+      },
     },
     "packages/normalizer": {
       "name": "@radiofy/normalizer",
