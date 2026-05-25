@@ -6,5 +6,10 @@
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radiofy/normalizer": "workspace:*",
+    "@radiofy/shared": "workspace:*",
+    "zod": "^3.23.8"
   }
 }
