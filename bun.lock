@@ -32,8 +32,10 @@
       "name": "@radiofy/matcher",
       "version": "0.0.0",
       "dependencies": {
+        "@radiofy/database": "workspace:*",
         "@radiofy/normalizer": "workspace:*",
         "@radiofy/shared": "workspace:*",
+        "@radiofy/spotify": "workspace:*",
         "zod": "^3.23.8",
       },
     },
