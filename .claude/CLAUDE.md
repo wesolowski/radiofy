@@ -146,9 +146,20 @@ Source of truth for architecture: `docs/architecture/PROJECT_ARCHITECTURE.md`
 
 ### Ground rules
 1. Read this `CLAUDE.md` before starting any task.
-2. Always work from a backlog ticket. No changes without a ticket.
+2. **Always work from a backlog ticket. No changes without a ticket — including bug-fixes, follow-ups, docs, and one-line changes.** If the change does not yet have a ticket, write one first (`.claude/templates/ticket-template.md`) and put it under `docs/ticket/backlog/in-progress/`.
 3. Only modify files that belong to the active ticket. No unrelated changes.
 4. Keep diffs minimal. No refactoring, formatting, or comments on code not part of the ticket.
+
+### Implementer fast path
+For small fixes the implementer may write, implement, and test the ticket in one pass, then move it **directly to `review/`** (skipping the manual `/ticket-start` formality). The reviewer is still the gate to `done/`. The order is:
+
+1. Write the ticket file in `docs/ticket/backlog/in-progress/<id>_<slug>.md` (use the template).
+2. Branch (`rdfy-<id>-<slug>`), implement, write tests, run the Quality Gate.
+3. `git mv` the ticket from `in-progress/` to `review/`.
+4. Commit the work and the ticket move together, push, open the PR.
+5. Dispatch the reviewer agent. If approved, the reviewer moves it to `done/` and writes the result document; the implementer commits that and merges.
+
+The slow path (`/ticket-start` → human pause → resume) still applies when the scope is unclear or the change is high-risk and benefits from an explicit alignment step before code is written.
 
 ### Ticket flow
 Tickets live in `docs/ticket/backlog/<status>/`, filename `<ticket-id>_<slug>.md`.
