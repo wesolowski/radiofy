@@ -64,10 +64,18 @@ radiofy/
 │       ├── backlog/{todo,in-progress,review,done}/
 │       ├── results/                     # one result doc per closed ticket
 │       └── testdata/
-├── apps/                     # (not yet) CLI entry + subcommands
-├── packages/                 # (not yet) sources, normalizer, matcher, spotify, database, shared
-├── config/                   # (not yet) stations.json
-└── storage/                  # local-only: SQLite DB, logs, OAuth token, overrides.json (gitignored)
+├── apps/
+│   └── worker/                          # one-shot CLI: 8 subcommands + lib helpers
+├── packages/
+│   ├── shared/                          # logger, config loader, types, date utils
+│   ├── sources/                         # malopolskie-media HTML parser
+│   ├── normalizer/                      # Polish ASCII fold + cleanup pipeline
+│   ├── spotify/                         # OAuth, search, scoring, playlist API
+│   ├── matcher/                         # overrides + resolveSong orchestration
+│   └── database/                        # Drizzle schema, migrations, repositories
+├── config/
+│   └── stations.json                    # station definitions, committed
+└── storage/                             # local-only: SQLite DB, logs, OAuth token, overrides.json (gitignored)
 ```
 
 The full layout, including each package's responsibilities and the database
@@ -75,24 +83,129 @@ schema, is in [`docs/architecture/PROJECT_ARCHITECTURE.md`](docs/architecture/PR
 
 ---
 
-## CLI commands (planned)
+## CLI commands
 
-Once the bootstrap ticket lands the project ships these subcommands:
+All commands are run via `bun run <name>` from the repo root. Each starts by
+applying any pending database migrations and then does its work.
 
-| Command | Purpose |
-|---|---|
-| `bun run sync --station=<id>` | Full pipeline: gather → resolve → replace Spotify playlist |
-| `bun run crawl --station=<id> [--day=YYYY-MM-DD]` | Crawl only, no Spotify writes |
-| `bun run spotify:auth` | One-time OAuth bootstrap (PKCE + `state`), writes refresh token to `storage/auth/spotify.json` |
-| `bun run export-unmatched [--station=...] [--since=...]` | Dump the unmatched-songs inbox as CSV |
-| `bun run export-playlist --name="<name>"` | Dump a Spotify playlist as CSV (for manual override authoring) |
-| `bun run overrides:validate` | Parse `storage/overrides.json`, report conflicts |
-| `bun run status [--strict]` | Last successful crawl + sync per station, stuck-run check |
-| `bun run prune-audit [--keep-days=90] [--dry-run]` | Drop old audit rows |
+### Daily / weekly (scheduler)
+
+#### `bun run crawl --station=<id> [--day=YYYY-MM-DD]`
+
+Fetches a single day's playlist HTML from the configured source for one
+station, parses it, normalizes the songs, and writes the results into the
+local SQLite database. **No Spotify calls** — this is purely the radio-side
+ingestion step. Defaults `--day` to yesterday in `Europe/Warsaw`. Running
+twice on the same `(station, day)` is idempotent thanks to a unique constraint.
+
+Use it when: the daily cron job fires, or you want to backfill a missing day.
+
+#### `bun run sync --station=<id>`
+
+The end-to-end pipeline. Looks at the rolling 7-day play history for the
+station, resolves each song to a Spotify track (manual override → cache →
+live search), groups by resolved track, picks the top 50 by play count,
+and atomically replaces the Spotify playlist whose name matches the
+station's `playlistName`. **This is the only command that writes to Spotify.**
+
+Use it when: the weekly cron job fires, or you've just added a manual
+override and want to apply it immediately.
+
+### Setup (one-time per machine)
+
+#### `bun run spotify:auth`
+
+Opens the Spotify consent page in your browser, captures the redirect on a
+local `127.0.0.1:8888` listener, exchanges the authorization code, and
+writes the refresh token to `storage/auth/spotify.json` with mode `0600`.
+Uses PKCE (S256) and a CSRF `state` parameter. After this runs once, every
+subsequent `bun run sync` can refresh tokens without further interaction.
+
+Use it when: first-time setup, or after Spotify revokes the refresh token
+(usually because you revoked the app's access in your Spotify account
+dashboard).
+
+### Manual override authoring (when the auto-matcher misses)
+
+#### `bun run export-unmatched [--station=<id>] [--since=YYYY-MM-DD] [--all]`
+
+Dumps the open `unmatched_songs` triage backlog to stdout as RFC 4180 CSV,
+sorted by `occurrence_count DESC`. Default scope is all open (unresolved)
+rows; `--all` includes already-resolved rows, `--station` filters to one
+station, `--since` filters by first-seen date.
+
+Use it when: you want to see what the auto-matcher couldn't place, and start
+fixing it by hand.
+
+#### `bun run export-playlist --name="<playlist name>"`
+
+Reads the named Spotify playlist via your OAuth token and dumps its tracks
+to stdout as CSV (`spotify_track_id, primary_artist, all_artists, title,
+added_at`). Read-only on both Spotify and the local database.
+
+Use it when: you've manually curated a "Radiofy Manual Matches" playlist in
+Spotify (drag-drop the songs you want for unmatched entries) and need the
+Spotify IDs to author override entries.
+
+> **The combined workflow**: `export-unmatched` + `export-playlist` give you
+> two CSVs. Hand them to an LLM with the prompt described in the runbook;
+> it produces a valid `storage/overrides.json` you can paste back.
+
+#### `bun run overrides:validate`
+
+Parses `storage/overrides.json` and reports one of three results: file
+missing, valid with N overrides loaded, or schema/conflict error with the
+offending entry indices. Does not touch the database or Spotify.
+
+Use it when: you've just edited `storage/overrides.json` and want to catch
+typos before the next sync run uses the file.
+
+### Operations
+
+#### `bun run status [--strict]`
+
+Prints a per-station health table (last successful crawl, last successful
+sync, open unmatched count) plus totals for cache size and stuck runs.
+Exit code is `0` when every enabled station has crawled within the last
+36 hours and no run is stuck; `1` otherwise. `--strict` also fails when a
+station has never been crawled (default treats it as "no data yet" and
+exits `0`).
+
+Use it when: you want to know if the cron actually ran, or as a monitoring
+probe (any non-zero exit means something needs attention).
+
+#### `bun run prune-audit [--keep-days=90] [--dry-run]`
+
+Deletes `crawl_runs` and `playlist_sync_runs` rows older than `--keep-days`
+(default 90). Only touches rows with `finished_at IS NOT NULL` — open /
+in-flight runs are never deleted. With `--dry-run` it just prints the
+counts that would be deleted.
+
+Use it when: monthly housekeeping, or before a long flight if you obsess
+about disk usage.
+
+### Testing helpers
+
+#### `bun run test:unit`
+
+Runs only the unit tests under `packages/*/test/`. No Spotify or network
+access. Fast.
+
+#### `bun run test:integration`
+
+Runs only `tests/integration/*.test.ts`. Tests are skipped unless
+`RADIOFY_INTEGRATION=1` is set, so it's safe to call from CI. With the env
+var set, these tests hit the real Spotify API against a dedicated test
+playlist (see `RADIOFY_INTEGRATION_PLAYLIST` in `.env.example`).
+
+#### `bun test`
+
+Runs everything (unit + integration), with integration tests skipped by
+default. The CI-friendly catch-all.
 
 ---
 
-## Quickstart (when implementation lands)
+## Quickstart
 
 ```bash
 # 1. Clone and install
@@ -117,9 +230,59 @@ bun run spotify:auth
 bun run sync --station=radio-zet
 ```
 
-Once that works, install a scheduler: daily crawl + weekly sync templates for
-`launchd` and `systemd` are in [`docs/operations/`](docs/operations/), with the
-full operator guide in [`docs/operations/runbook.md`](docs/operations/runbook.md).
+Once that works, install a scheduler — templates are in
+[`docs/operations/`](docs/operations/) (see the next section).
+
+---
+
+## What's in `docs/operations/`
+
+Everything an operator needs after the code is checked out.
+
+```
+docs/operations/
+├── runbook.md                                       # the operator guide
+├── launchd/
+│   ├── com.radiofy.crawl.STATION.plist.template     # macOS: daily crawl  at 03:00 local
+│   └── com.radiofy.sync.STATION.plist.template      # macOS: weekly sync  Sundays 04:00 local
+└── systemd/
+    ├── radiofy-crawl@.service                       # Linux: daily crawl  (parametrized by station)
+    ├── radiofy-crawl@.timer                         #        OnCalendar: *-*-* 03:00:00 Europe/Warsaw
+    ├── radiofy-sync@.service                        # Linux: weekly sync  (parametrized by station)
+    └── radiofy-sync@.timer                          #        OnCalendar: Sun *-*-* 04:00:00 Europe/Warsaw
+```
+
+### `runbook.md`
+
+Step-by-step operator guide:
+
+- **First-time setup** — Spotify dev app, `.env`, hand-creating the target
+  Spotify playlists, filling `config/stations.json`, running
+  `bun run spotify:auth`.
+- **Daily operations** — `bun run status` for health checks.
+- **Triage workflow** — the LLM-assisted procedure for resolving unmatched
+  songs through `export-unmatched` + `export-playlist`.
+- **Monthly housekeeping** — `bun run prune-audit`.
+- **Scheduling** — how to install the templates below.
+- **Recovery** — concrete steps for revoked OAuth tokens, stuck syncs,
+  override-file conflicts, and DB corruption.
+
+### `launchd/*.plist.template`
+
+Two macOS launchd job templates: one for crawl (daily 03:00) and one for
+sync (weekly, Sunday 04:00). Both are parameterized by the literal string
+`STATION` in the file name and contents, plus the literal placeholder
+`/ABSOLUTE/PATH/TO/radiofy` for the checkout directory. The runbook shows
+the `sed` one-liner that produces a real plist from a template.
+
+### `systemd/radiofy-{crawl,sync}@.{service,timer}`
+
+The Linux equivalent. Systemd's `@.service` / `@.timer` naming means you
+instantiate them per station — `systemctl --user enable --now
+radiofy-crawl@radio-zet.timer` creates the daily crawl job for ZET, and
+the same with `--sync@` for the weekly sync. The `OnCalendar` clauses are
+already correct; the only file you may need to edit is the `ExecStart`
+path if Bun isn't at `/usr/local/bin/bun` on your system.
 
 ---
 
