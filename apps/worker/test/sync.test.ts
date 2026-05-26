@@ -113,7 +113,10 @@ describe('runSync', () => {
         });
       }
       if (method === 'PUT' && url.includes('/v1/playlists/PID/tracks')) {
-        return jsonResponse({ snapshot_id: 'snap-1' });
+        return jsonResponse({ snapshot_id: 'snap-cleared' });
+      }
+      if (method === 'POST' && url.includes('/v1/playlists/PID/tracks')) {
+        return jsonResponse({ snapshot_id: 'snap-added' });
       }
       return jsonResponse({}, 404);
     });
@@ -130,14 +133,18 @@ describe('runSync', () => {
     expect(outcome.kind).toBe('ok');
     if (outcome.kind === 'ok') {
       expect(outcome.tracksWritten).toBe(2);
-      expect(outcome.snapshotId).toBe('snap-1');
+      expect(outcome.snapshotId).toBe('snap-added');
     }
 
     const putCall = fetchCalls.find((c) => c.method === 'PUT');
     expect(putCall).toBeDefined();
-    const body = JSON.parse(putCall?.body ?? '{}');
-    expect(body.uris[0]).toBe('spotify:track:aaaaaaaaaaaaaaaaaaaaaa');
-    expect(body.uris[1]).toBe('spotify:track:bbbbbbbbbbbbbbbbbbbbbb');
+    expect(JSON.parse(putCall?.body ?? '{}').uris).toEqual([]);
+
+    const postCall = fetchCalls.find((c) => c.method === 'POST');
+    expect(postCall).toBeDefined();
+    const postBody = JSON.parse(postCall?.body ?? '{}');
+    expect(postBody.uris[0]).toBe('spotify:track:aaaaaaaaaaaaaaaaaaaaaa');
+    expect(postBody.uris[1]).toBe('spotify:track:bbbbbbbbbbbbbbbbbbbbbb');
   });
 
   test('returns no_songs when nothing in the window resolves — no playlist call', async () => {
@@ -235,7 +242,8 @@ describe('runSync', () => {
           next: null,
         });
       }
-      if (method === 'PUT') return jsonResponse({ snapshot_id: 'snap-2' });
+      if (method === 'PUT') return jsonResponse({ snapshot_id: 'snap-cleared' });
+      if (method === 'POST') return jsonResponse({ snapshot_id: 'snap-added' });
       return jsonResponse({}, 404);
     });
 
@@ -249,8 +257,8 @@ describe('runSync', () => {
     });
 
     expect(outcome.kind).toBe('ok');
-    const putCall = fetchCalls.find((c) => c.method === 'PUT');
-    const body = JSON.parse(putCall?.body ?? '{}');
+    const postCall = fetchCalls.find((c) => c.method === 'POST');
+    const body = JSON.parse(postCall?.body ?? '{}');
     expect(body.uris).toContain('spotify:track:overrideoverrideoverri');
   });
 });

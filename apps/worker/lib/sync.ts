@@ -9,7 +9,6 @@ import {
 import { type OverrideTable, loadOverrides, resolveSong } from '@radiofy/matcher';
 import { type NormalizedSong, type RawSong, logger, rollingWeekWindow } from '@radiofy/shared';
 import {
-  PLAYLIST_TRACK_CAP,
   PlaylistNotFoundError,
   getAccessToken,
   getPlaylistByName,
@@ -133,7 +132,7 @@ export const runSync = async (options: SyncOptions): Promise<SyncOutcome> => {
       if (b.plays !== a.plays) return b.plays - a.plays;
       return b.lastSeenAt.localeCompare(a.lastSeenAt);
     });
-    const uris = sorted.slice(0, PLAYLIST_TRACK_CAP).map(([id]) => id);
+    const uris = sorted.map(([id]) => id);
 
     if (uris.length === 0) {
       logger.warn('sync: no resolvable songs in window — skipping playlist replace', {

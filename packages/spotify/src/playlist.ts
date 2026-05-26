@@ -2,7 +2,7 @@ import { logger } from '@radiofy/shared';
 import { SpotifyTransientError } from './errors.ts';
 import { spotifyFetch } from './http.ts';
 
-export const PLAYLIST_TRACK_CAP = 50;
+export const PLAYLIST_WRITE_BATCH = 100;
 const ME_PLAYLISTS_PAGE_SIZE = 50;
 const PLAYLIST_TRACKS_PAGE_SIZE = 100;
 
@@ -17,18 +17,6 @@ export class PlaylistEmptyError extends Error {
   constructor() {
     super('refuse to replace a playlist with an empty list of tracks');
     this.name = 'PlaylistEmptyError';
-  }
-}
-
-export class PlaylistOverCapError extends Error {
-  readonly cap: number;
-  readonly received: number;
-
-  constructor(received: number) {
-    super(`playlist track list (${received}) exceeds MVP cap of ${PLAYLIST_TRACK_CAP}`);
-    this.name = 'PlaylistOverCapError';
-    this.cap = PLAYLIST_TRACK_CAP;
-    this.received = received;
   }
 }
 
@@ -153,6 +141,12 @@ export const getPlaylistTracks = async (
   return tracks;
 };
 
+/**
+ * Replaces the playlist with the given track list using a clear-then-append
+ * flow: one PUT with an empty URI list wipes the existing contents, then one
+ * or more POSTs append the new URIs in chunks of `PLAYLIST_WRITE_BATCH`.
+ * Spotify accepts at most 100 URIs per call on both endpoints.
+ */
 export const replacePlaylistTracks = async (
   playlistId: string,
   spotifyTrackIds: readonly string[],
@@ -161,30 +155,46 @@ export const replacePlaylistTracks = async (
   if (spotifyTrackIds.length === 0) {
     throw new PlaylistEmptyError();
   }
-  if (spotifyTrackIds.length > PLAYLIST_TRACK_CAP) {
-    throw new PlaylistOverCapError(spotifyTrackIds.length);
-  }
 
   const uris = spotifyTrackIds.map((id) =>
     id.startsWith('spotify:track:') ? id : `spotify:track:${id}`,
   );
-
   const url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`;
-  const res = await spotifyFetch(url, accessToken, {
+
+  const clear = await spotifyFetch(url, accessToken, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uris }),
+    body: JSON.stringify({ uris: [] }),
   });
-
-  if (res.status === 404) {
+  if (clear.status === 404) {
     throw new PlaylistNotFoundError(`no playlist with id "${playlistId}"`);
   }
-  if (!res.ok) {
+  if (!clear.ok) {
     throw new SpotifyTransientError(
-      `Spotify ${res.status} on PUT /playlists/{id}/tracks`,
-      res.status,
+      `Spotify ${clear.status} on PUT /playlists/{id}/tracks`,
+      clear.status,
     );
   }
-  const body = (await res.json()) as { snapshot_id: string };
-  return { snapshotId: body.snapshot_id };
+  let snapshotId = ((await clear.json()) as { snapshot_id: string }).snapshot_id;
+
+  for (let offset = 0; offset < uris.length; offset += PLAYLIST_WRITE_BATCH) {
+    const batch = uris.slice(offset, offset + PLAYLIST_WRITE_BATCH);
+    const res = await spotifyFetch(url, accessToken, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: batch }),
+    });
+    if (res.status === 404) {
+      throw new PlaylistNotFoundError(`no playlist with id "${playlistId}"`);
+    }
+    if (!res.ok) {
+      throw new SpotifyTransientError(
+        `Spotify ${res.status} on POST /playlists/{id}/tracks`,
+        res.status,
+      );
+    }
+    snapshotId = ((await res.json()) as { snapshot_id: string }).snapshot_id;
+  }
+
+  return { snapshotId };
 };
