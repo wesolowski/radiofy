@@ -14,6 +14,7 @@
     "export-playlist": "bun apps/worker/commands/export-playlist.ts",
     "status": "bun apps/worker/commands/status.ts",
     "prune-audit": "bun apps/worker/commands/prune-audit.ts",
+    "prune-plays": "bun apps/worker/commands/prune-plays.ts",
     "top-played": "bun apps/worker/commands/top-played.ts",
     "test:unit": "bun test packages",
     "test:integration": "bun test tests/integration"
