@@ -187,6 +187,17 @@ counts that would be deleted.
 Use it when: monthly housekeeping, or before a long flight if you obsess
 about disk usage.
 
+#### `bun run prune-plays [--keep-days=30] [--dry-run]`
+
+Deletes rows from the `plays` table whose `played_at` is older than
+`--keep-days` (default 30). Sync only ever uses the rolling 7-day window,
+so 30 days is plenty of headroom; anything older is dead weight. With
+`--dry-run` it just prints the count. Refuses `--keep-days=0` to make
+"accidental delete everything" impossible.
+
+Use it when: monthly housekeeping. Without it the local SQLite database
+grows ~30 MB per year per four stations.
+
 ### Testing helpers
 
 #### `bun run test:unit`

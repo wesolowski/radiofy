@@ -128,9 +128,13 @@ After step 6, the resolved entries in `unmatched_songs` get their `resolved_at` 
 ```bash
 bun run prune-audit --dry-run             # see how many audit rows would be deleted
 bun run prune-audit                       # actually delete (default --keep-days=90)
+bun run prune-plays --dry-run             # see how many old plays would be deleted
+bun run prune-plays                       # actually delete (default --keep-days=30)
 ```
 
 `prune-audit` only touches `crawl_runs` and `playlist_sync_runs` rows with `finished_at IS NOT NULL`. Open / in-flight rows are never deleted.
+
+`prune-plays` deletes rows in the `plays` table whose `played_at` is older than `--keep-days` (default 30). Sync only ever consults the rolling 7-day window so anything older is safe to drop; the top-played console command still works against whatever you keep. `--keep-days=0` is refused so you can't accidentally wipe the table.
 
 ---
 
