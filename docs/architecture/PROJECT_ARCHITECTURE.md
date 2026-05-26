@@ -823,9 +823,16 @@ is treated as a failed run and surfaces in health checks.
 
 # Spotify Authentication
 
-Playlist writes require **user-level OAuth** with scopes
-`playlist-modify-public` and `playlist-modify-private`. Client Credentials
-flow is read-only and is not sufficient.
+Playlist writes require **user-level OAuth** with three scopes:
+
+* `playlist-read-private` — required so `GET /v1/me/playlists` includes the
+  operator's private playlists when looking the target up by name.
+* `playlist-modify-public` — required to replace the contents of a public
+  playlist the operator owns.
+* `playlist-modify-private` — required to replace the contents of a private
+  playlist the operator owns.
+
+Client Credentials flow is read-only and not sufficient.
 
 ## Flow
 
