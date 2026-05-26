@@ -202,4 +202,46 @@ describe('runCrawl', () => {
     const stuck = crawlRunsRepo.findStuckOlderThan(db, '9999-12-31T00:00:00.000Z');
     expect(stuck).toEqual([]);
   });
+
+  test('--days=3 opens three crawl_runs rows for the three days before yesterday', async () => {
+    const fakeNow = new Date('2026-05-26T12:00:00.000Z');
+    const seenDays: string[] = [];
+    const fetchFn = (async (url: string | URL | Request) => {
+      const u = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      const dayMatch = u.match(/\/(\d{4}-\d{2}-\d{2})\//);
+      if (dayMatch?.[1] !== undefined) seenDays.push(dayMatch[1]);
+      return new Response(html, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      days: 3,
+      db,
+      stationsPath,
+      fetchFn,
+      now: (): Date => fakeNow,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysCrawled).toBe(3);
+    const distinctDays = new Set(seenDays);
+    expect(distinctDays.size).toBe(3);
+    expect(distinctDays.has('2026-05-25')).toBe(true);
+    expect(distinctDays.has('2026-05-24')).toBe(true);
+    expect(distinctDays.has('2026-05-23')).toBe(true);
+  });
+
+  test('--days=1 (default) crawls yesterday only', async () => {
+    const fakeNow = new Date('2026-05-26T12:00:00.000Z');
+    const fetchFn = (async () =>
+      new Response(html, { status: 200 })) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      days: 1,
+      db,
+      stationsPath,
+      fetchFn,
+      now: (): Date => fakeNow,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysCrawled).toBe(1);
+  });
 });

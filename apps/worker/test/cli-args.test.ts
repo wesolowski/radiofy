@@ -27,4 +27,29 @@ describe('parseStationArgs', () => {
       parseStationArgs(['--station=radio-zet', '--day=24/05/2026'], { allowDay: true }),
     ).toThrow(/YYYY-MM-DD/);
   });
+
+  test('with allowDays=true, --days=7 is parsed as number', () => {
+    expect(parseStationArgs(['--station=radio-zet', '--days=7'], { allowDays: true })).toEqual({
+      station: 'radio-zet',
+      days: 7,
+    });
+  });
+
+  test('with allowDays=true, non-integer --days throws', () => {
+    expect(() =>
+      parseStationArgs(['--station=radio-zet', '--days=abc'], { allowDays: true }),
+    ).toThrow(/positive integer/);
+    expect(() =>
+      parseStationArgs(['--station=radio-zet', '--days=0'], { allowDays: true }),
+    ).toThrow(/positive integer/);
+    expect(() =>
+      parseStationArgs(['--station=radio-zet', '--days=32'], { allowDays: true }),
+    ).toThrow(/positive integer/);
+  });
+
+  test('without allowDays, --days is silently ignored', () => {
+    expect(parseStationArgs(['--station=radio-zet', '--days=7'])).toEqual({
+      station: 'radio-zet',
+    });
+  });
 });
