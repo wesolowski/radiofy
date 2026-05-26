@@ -1,0 +1,38 @@
+# Radiofy crontab — daily crawl + weekly Sunday sync.
+#
+# Install:
+#   crontab -e                   # paste the lines below, then save & exit
+#   crontab -l                   # verify
+#
+# Two things to adjust before pasting:
+#   1. PATHS:  set RADIOFY to your checkout, and BUN to `which bun`
+#   2. TIMEZONE: CRON_TZ below pins the schedule to Europe/Warsaw regardless of
+#      the server's clock. Remove the line if your server is already on
+#      Europe/Warsaw, or change it if you want a different reference timezone.
+
+CRON_TZ=Europe/Warsaw
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+RADIOFY=/home/youruser/radiofy
+BUN=/usr/local/bin/bun
+LOG=/home/youruser/radiofy/storage/logs/cron.log
+
+# ─── Daily crawl per station — 03:00 Europe/Warsaw ──────────────────────────
+# Stations are staggered by 5 minutes so they don't all hit the aggregator at
+# the same wall-clock second. The aggregator load is trivial either way.
+0  3 * * *  cd $RADIOFY && $BUN run crawl --station=radio-zet  >> $LOG 2>&1
+5  3 * * *  cd $RADIOFY && $BUN run crawl --station=rmf-fm     >> $LOG 2>&1
+10 3 * * *  cd $RADIOFY && $BUN run crawl --station=rmf-maxx   >> $LOG 2>&1
+15 3 * * *  cd $RADIOFY && $BUN run crawl --station=radio-eska >> $LOG 2>&1
+
+# ─── Weekly sync per station — Sunday 04:00 Europe/Warsaw ───────────────────
+0  4 * * 0  cd $RADIOFY && $BUN run sync --station=radio-zet  >> $LOG 2>&1
+5  4 * * 0  cd $RADIOFY && $BUN run sync --station=rmf-fm     >> $LOG 2>&1
+10 4 * * 0  cd $RADIOFY && $BUN run sync --station=rmf-maxx   >> $LOG 2>&1
+15 4 * * 0  cd $RADIOFY && $BUN run sync --station=radio-eska >> $LOG 2>&1
+
+# ─── Optional: monthly audit prune ──────────────────────────────────────────
+# Drops crawl_runs / playlist_sync_runs rows older than 90 days, every 1st
+# of the month at 05:00 Europe/Warsaw.
+0  5 1 * *  cd $RADIOFY && $BUN run prune-audit >> $LOG 2>&1

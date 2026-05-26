@@ -132,7 +132,33 @@ bun run prune-audit                       # actually delete (default --keep-days
 
 ## Scheduling
 
-The worker is a one-shot CLI. Use the OS scheduler.
+The worker is a one-shot CLI. Use the OS scheduler. Three options ship in
+`docs/operations/`:
+
+| Scheduler | When to pick it | Where |
+|---|---|---|
+| **cron** | Linux server, "one-line per job" is the simplest fit | `docs/operations/cron/crontab.example` |
+| **launchd** | macOS | `docs/operations/launchd/*.plist.template` |
+| **systemd-timer** | Linux server, you already manage other systemd units | `docs/operations/systemd/radiofy-*.{service,timer}` |
+
+For a typical Linux server running radiofy as its only scheduled job, cron is
+the easiest fit. Pick whichever matches the host you actually deploy on.
+
+### Linux (cron, recommended for most servers)
+
+Open `docs/operations/cron/crontab.example`, adjust the three variables at the
+top (`RADIOFY`, `BUN`, `LOG`) to match your checkout, then install:
+
+```bash
+crontab -e   # paste the contents, save, quit
+crontab -l   # verify
+```
+
+The example pins the schedule to `Europe/Warsaw` via `CRON_TZ`, so the times
+fire correctly even if the server's clock is UTC. Output from each run is
+appended to `storage/logs/cron.log`; the worker also writes its own
+structured-JSON file at `storage/logs/<command>-<station>.log` that is
+truncated on every invocation.
 
 ### macOS (launchd)
 
