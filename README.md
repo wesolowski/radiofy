@@ -25,8 +25,8 @@ For each configured station the worker runs a one-shot pipeline:
    scoring), cache the result, route low-confidence hits and outright misses
    into an `unmatched_songs` triage table.
 4. **Replace** — once a week, group the rolling-7-day plays by resolved
-   Spotify track, take the top 50 by play count, atomically replace the
-   target Spotify playlist's contents with one `PUT` call.
+   Spotify track, sort by play count, clear the target Spotify playlist,
+   and re-append every resolved track in batches of 100.
 
 A separate workflow lets you resolve unmatched songs by hand: dump the open
 backlog as CSV, find the songs in Spotify and drop them into a "manual
@@ -107,9 +107,10 @@ multi-day outage (`--days=7`); to re-crawl a specific date (`--day=YYYY-MM-DD`).
 
 The end-to-end pipeline. Looks at the rolling 7-day play history for the
 station, resolves each song to a Spotify track (manual override → cache →
-live search), groups by resolved track, picks the top 50 by play count,
-and atomically replaces the Spotify playlist whose name matches the
-station's `playlistName`. **This is the only command that writes to Spotify.**
+live search), groups by resolved track, sorts by play count, then clears
+the Spotify playlist whose name matches the station's `playlistName` and
+appends the resolved tracks back in chunks of 100. **This is the only
+command that writes to Spotify.**
 
 Use it when: the weekly cron job fires, or you've just added a manual
 override and want to apply it immediately.

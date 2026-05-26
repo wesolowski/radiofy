@@ -19,10 +19,9 @@ export { generateChallenge, generateState, generateVerifier } from './pkce.ts';
 export {
   getPlaylistByName,
   getPlaylistTracks,
-  PLAYLIST_TRACK_CAP,
   PlaylistEmptyError,
   PlaylistNotFoundError,
-  PlaylistOverCapError,
+  PLAYLIST_WRITE_BATCH,
   type PlaylistTrack,
   type ReplaceResult,
   replacePlaylistTracks,

@@ -828,26 +828,27 @@ and returns the first playlist whose `name` matches the config value exactly.
 
 This is the same pattern used in the prior Rust prototype (`get_playlist_by_name`).
 
-## Update atomicity
+## Update flow
 
-Spotify's `PUT /v1/playlists/{id}/tracks` atomically replaces the entire
-playlist content — but **only up to 100 URIs per call** (Spotify API hard
-limit). Beyond 100 tracks the operation becomes a sequence (`PUT` first 100,
-`POST` each subsequent batch), with a transient state visible to listeners
-between calls.
+Spotify's `PUT /v1/playlists/{id}/tracks` replaces the entire playlist
+content — but **only up to 100 URIs per call** (Spotify API hard limit).
+The same 100-URI limit applies to `POST` for appends.
 
-MVP policy:
+Sync policy (RDFY-022):
 
-* **Hard cap of 50 tracks** per playlist for v1 — well under the 100-URI
-  atomic limit, identical behaviour to the previous Rust-based prototype, and
-  safely below any per-request edge case Spotify might enforce in future
-* Single `PUT` per sync → true atomicity, no observable intermediate state
-* If a future ranking ever needs >100 tracks, the multi-batch path
-  (`PUT` + `POST...`) and its visible intermediate state are added in a
-  dedicated ticket and documented in the operations runbook
+* **Clear, then append.** Every sync issues one `PUT` with `{"uris": []}`
+  to wipe the playlist regardless of its current size, then one or more
+  `POST` calls of up to 100 URIs each to append the new ranking in
+  play-count order.
+* No artificial track cap — the playlist mirrors the full set of resolved
+  songs from the rolling 7-day window.
+* Listeners briefly see an empty or partial playlist between the clear and
+  the final append. This is intentional and acceptable for a weekly job
+  that runs at 04:00 local time.
 
 The official `@spotify/web-api-ts-sdk` does **not** batch automatically —
-the worker controls chunking explicitly.
+the worker controls chunking explicitly (see
+`packages/spotify/src/playlist.ts → replacePlaylistTracks`).
 
 ## Update trigger
 
