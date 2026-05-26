@@ -353,10 +353,46 @@ operator preferences that must not enter the public repository.
 
 # Data Sources
 
-## malopolskie-media.info (MVP source)
+## odsluchane.eu (active source — RDFY-015)
 
-Aggregator site that exposes daily playlists for the four MVP stations and
-many more.
+The MVP originally used `malopolskie-media.info`. As of 2026-05 that site
+sits behind Cloudflare's "Under Attack Mode" challenge that does not pass
+even with `puppeteer-extra-plugin-stealth`, so the worker can no longer
+reach it. `odsluchane.eu` is a sibling Polish aggregator covering the same
+stations and is reachable via plain `fetch`.
+
+### URL pattern
+
+```
+https://www.odsluchane.eu/szukaj.php?r=<station-id>&date=DD-MM-YYYY&time_from=<h>&time_to=<h>
+```
+
+Three quirks worth knowing:
+
+* `r=` is a **numeric** station id. MVP map: `1` = ZET, `2` = RMF FM, `3` = ESKA, `4` = RMF MAXX. Lookup table lives in `packages/sources/src/odsluchane-eu/index.ts`.
+* `date=` is **DD-MM-YYYY** (Polish convention). The worker converts from the canonical YYYY-MM-DD.
+* The site rejects very wide windows — `time_to=24` silently truncates and 12-hour windows return zero songs. Three windows reliably cover a full day: `0-10`, `10-20`, `20-0` (the `time_to=0` value is the working "end of day" marker). The DB UNIQUE constraint on `(source, source_track_id, station, played_at)` silently de-duplicates the one-hour boundary overlap between adjacent windows.
+
+### Page structure
+
+Each song is a `<tr>` with two relevant `<td>`s — the time (`HH:MM`) and a
+link of the form
+`<a href="https://www.odsluchane.eu/utwor/<id>/<slug>" class="title-link">Artist - Title</a>`.
+The numeric `<id>` is stable per song across stations and days; same dedup
+guarantee as the original malopolskie-media `utwor/` id.
+
+### Crawl strategy
+
+* Each daily crawl issues three sequential `fetch` calls (one per window).
+* No browser automation needed (`fetch` + `cheerio` is sufficient).
+* Boundary overlaps land in the database harmlessly via the UNIQUE constraint.
+
+## malopolskie-media.info (deprecated)
+
+Original aggregator site. Code path is still in the repository
+(`packages/sources/src/malopolskie-media/`) as a worked example of the
+source abstraction and so old test fixtures keep parsing. It is **not** the
+active source — Cloudflare blocks the worker's fetch.
 
 ### URL pattern
 
