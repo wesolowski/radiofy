@@ -90,15 +90,18 @@ applying any pending database migrations and then does its work.
 
 ### Daily / weekly (scheduler)
 
-#### `bun run crawl --station=<id> [--day=YYYY-MM-DD]`
+#### `bun run crawl --station=<id> [--day=YYYY-MM-DD] [--days=N]`
 
-Fetches a single day's playlist HTML from the configured source for one
+Fetches one or more days of playlist HTML from the configured source for one
 station, parses it, normalizes the songs, and writes the results into the
 local SQLite database. **No Spotify calls** — this is purely the radio-side
-ingestion step. Defaults `--day` to yesterday in `Europe/Warsaw`. Running
-twice on the same `(station, day)` is idempotent thanks to a unique constraint.
+ingestion step. Defaults to yesterday only (`--day` defaults to yesterday in
+`Europe/Warsaw`). Pass `--days=7` to backfill the last week in a single run.
+`--day` overrides `--days` when both are given. Running twice on the same
+`(station, day)` is idempotent thanks to a unique constraint.
 
-Use it when: the daily cron job fires, or you want to backfill a missing day.
+Use it when: the daily cron job fires (no flags); after a fresh setup or
+multi-day outage (`--days=7`); to re-crawl a specific date (`--day=YYYY-MM-DD`).
 
 #### `bun run sync --station=<id>`
 

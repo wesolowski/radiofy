@@ -68,9 +68,13 @@ This opens the Spotify consent page in your browser and listens on `127.0.0.1:88
 ### 7. First crawl + first sync
 
 ```bash
-bun run crawl --station=radio-zet --day=2026-05-25
+bun run crawl --station=radio-zet --days=7    # one-shot week backfill
 bun run sync  --station=radio-zet
 ```
+
+(Use `--day=YYYY-MM-DD` instead of `--days=7` to crawl one specific day. The
+cron job continues to call `bun run crawl --station=<id>` without any flags
+and gets the documented "yesterday only" behaviour.)
 
 The Spotify playlist now contains the most-played tracks from the configured station for the last seven days.
 
