@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import type { Db } from '../db.ts';
 import { type NewPlaylistSyncRun, type PlaylistSyncRun, playlistSyncRuns } from '../schema.ts';
 
@@ -38,4 +38,41 @@ export const syncRunsRepo = {
       .from(playlistSyncRuns)
       .where(and(isNull(playlistSyncRuns.finishedAt), lt(playlistSyncRuns.startedAt, cutoffIso)))
       .all(),
+
+  lastSuccess: (db: Db, station: string): PlaylistSyncRun | undefined =>
+    db
+      .select()
+      .from(playlistSyncRuns)
+      .where(
+        and(
+          eq(playlistSyncRuns.station, station),
+          isNotNull(playlistSyncRuns.finishedAt),
+          isNull(playlistSyncRuns.error),
+        ),
+      )
+      .orderBy(desc(playlistSyncRuns.finishedAt))
+      .limit(1)
+      .get(),
+
+  countClosedOlderThan: (db: Db, cutoffIso: string): number => {
+    const row = db
+      .select({ c: sql<number>`count(*)` })
+      .from(playlistSyncRuns)
+      .where(
+        and(isNotNull(playlistSyncRuns.finishedAt), lt(playlistSyncRuns.finishedAt, cutoffIso)),
+      )
+      .get();
+    return Number(row?.c ?? 0);
+  },
+
+  deleteClosedOlderThan: (db: Db, cutoffIso: string): number => {
+    const before = db.select({ c: sql<number>`count(*)` }).from(playlistSyncRuns).get();
+    db.delete(playlistSyncRuns)
+      .where(
+        and(isNotNull(playlistSyncRuns.finishedAt), lt(playlistSyncRuns.finishedAt, cutoffIso)),
+      )
+      .run();
+    const after = db.select({ c: sql<number>`count(*)` }).from(playlistSyncRuns).get();
+    return Number(before?.c ?? 0) - Number(after?.c ?? 0);
+  },
 };
