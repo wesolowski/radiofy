@@ -8,7 +8,7 @@ import {
 } from '@radiofy/database';
 import { normalize } from '@radiofy/normalizer';
 import { logger } from '@radiofy/shared';
-import { malopolskieMediaSource } from '@radiofy/sources';
+import { malopolskieMediaSource, odsluchaneEuSource } from '@radiofy/sources';
 import { loadStation } from './station-loader.ts';
 import { yesterdayInTz } from './yesterday.ts';
 
@@ -16,6 +16,7 @@ const OVERLAP_CUTOFF_MS = 5 * 60 * 1000;
 
 const SOURCES = {
   'malopolskie-media': malopolskieMediaSource,
+  'odsluchane-eu': odsluchaneEuSource,
 } as const;
 
 type SourceId = keyof typeof SOURCES;
@@ -81,13 +82,15 @@ export const runCrawl = async (options: CrawlOptions): Promise<CrawlOutcome> => 
   });
 
   try {
-    const url = source.buildUrl(station.sourceSlug, day);
-    logger.info('crawl: fetching', { station: station.id, day, url });
-    const res = await fetchFn(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-    const html = await res.text();
-
-    const songs = source.parse({ html, station: station.id, day });
+    const urls = source.dayUrls(station.sourceSlug, day);
+    logger.info('crawl: fetching', { station: station.id, day, urls: urls.length });
+    const songs = [];
+    for (const url of urls) {
+      const res = await fetchFn(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+      const html = await res.text();
+      songs.push(...source.parse({ html, station: station.id, day }));
+    }
     logger.info('crawl: parsed', { station: station.id, songs: songs.length });
 
     const crawledAt = now().toISOString();
