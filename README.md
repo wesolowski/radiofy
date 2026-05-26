@@ -242,6 +242,8 @@ Everything an operator needs after the code is checked out.
 ```
 docs/operations/
 ├── runbook.md                                       # the operator guide
+├── cron/
+│   └── crontab.example                              # Linux: daily crawl + weekly sync (recommended for most servers)
 ├── launchd/
 │   ├── com.radiofy.crawl.STATION.plist.template     # macOS: daily crawl  at 03:00 local
 │   └── com.radiofy.sync.STATION.plist.template      # macOS: weekly sync  Sundays 04:00 local
@@ -251,6 +253,11 @@ docs/operations/
     ├── radiofy-sync@.service                        # Linux: weekly sync  (parametrized by station)
     └── radiofy-sync@.timer                          #        OnCalendar: Sun *-*-* 04:00:00 Europe/Warsaw
 ```
+
+Pick **one** scheduler. For a typical Linux server cron is the simplest fit;
+launchd is the native macOS choice; systemd-timer is for hosts where you
+already manage other systemd units. The runbook walks through installing
+each.
 
 ### `runbook.md`
 
@@ -266,6 +273,14 @@ Step-by-step operator guide:
 - **Scheduling** — how to install the templates below.
 - **Recovery** — concrete steps for revoked OAuth tokens, stuck syncs,
   override-file conflicts, and DB corruption.
+
+### `cron/crontab.example`
+
+A drop-in `crontab` snippet covering all four MVP stations: daily crawl at
+03:00 and weekly Sunday sync at 04:00 (both pinned to `Europe/Warsaw` via
+`CRON_TZ`), plus a monthly audit-prune. Adjust the three path variables at
+the top of the file, then `crontab -e` and paste. Recommended for typical
+Linux servers since the entire setup is one file.
 
 ### `launchd/*.plist.template`
 
