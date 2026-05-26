@@ -63,7 +63,7 @@ Repeat per station. Use `"enabled": false` to keep a station configured but skip
 bun run spotify:auth
 ```
 
-This opens the Spotify consent page in your browser and listens on `127.0.0.1:8888` for the redirect. After you click "Agree" the command writes `storage/auth/spotify.json` with mode `0600` and exits.
+This opens the Spotify consent page in your browser and listens on `127.0.0.1:8888` for the redirect. The consent screen requests read and write access to both your public and your private playlists; both are needed because the worker looks up the target playlist by name (which requires read access to private playlists) and replaces its contents (which requires write access to whichever visibility the playlist has). After you click "Agree" the command writes `storage/auth/spotify.json` with mode `0600` and exits.
 
 ### 7. First crawl + first sync
 
@@ -212,6 +212,19 @@ The default is daily crawl + weekly sync. To run both weekly together, change th
 Symptom: `bun run sync` exits 1 with `SpotifyAuthExpiredError` and a hint to re-run `bun run spotify:auth`.
 
 Fix:
+
+```bash
+rm storage/auth/spotify.json
+bun run spotify:auth
+```
+
+### Sync fails with PlaylistNotFoundError after upgrading
+
+Symptom: a private playlist that worked before now triggers `PlaylistNotFoundError` from `sync`, with no other changes in the configuration.
+
+Cause: the OAuth scope set grew (RDFY-014 added `playlist-read-private`). The cached refresh token from before that change does not carry the new scope, so `GET /v1/me/playlists` only returns public playlists for that token.
+
+Fix: delete the cached token and re-grant consent so the new scope is included.
 
 ```bash
 rm storage/auth/spotify.json

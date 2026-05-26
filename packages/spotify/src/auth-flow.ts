@@ -1,7 +1,11 @@
 import { loadConfig } from '@radiofy/shared';
 import { generateChallenge, generateState, generateVerifier } from './pkce.ts';
 
-export const SCOPES = ['playlist-modify-public', 'playlist-modify-private'] as const;
+export const SCOPES = [
+  'playlist-read-private',
+  'playlist-modify-public',
+  'playlist-modify-private',
+] as const;
 
 export const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 export const AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';

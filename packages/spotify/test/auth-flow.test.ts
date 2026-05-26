@@ -31,6 +31,9 @@ describe('buildAuthRequest', () => {
     expect(url.searchParams.get('client_id')).toBe('test-client-id');
     expect(url.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:8888/callback');
     expect(url.searchParams.get('scope')).toBe(SCOPES.join(' '));
+    expect(SCOPES).toContain('playlist-read-private');
+    expect(SCOPES).toContain('playlist-modify-public');
+    expect(SCOPES).toContain('playlist-modify-private');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('code_challenge')?.length).toBeGreaterThan(0);
     expect(url.searchParams.get('state')).toBe(state);
