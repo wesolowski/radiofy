@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Db } from '../db.ts';
 import { type NewSpotifyMatch, type SpotifyMatch, spotifyMatches } from '../schema.ts';
 
@@ -20,4 +20,9 @@ export const matchesRepo = {
 
   get: (db: Db, songId: number): SpotifyMatch | undefined =>
     db.select().from(spotifyMatches).where(eq(spotifyMatches.songId, songId)).get(),
+
+  count: (db: Db): number => {
+    const row = db.select({ c: sql<number>`count(*)` }).from(spotifyMatches).get();
+    return Number(row?.c ?? 0);
+  },
 };

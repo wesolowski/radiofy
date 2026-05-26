@@ -5,6 +5,6 @@ export { matchesRepo } from './repos/matches.ts';
 export { playsRepo, type ResolutionInput } from './repos/plays.ts';
 export { songsRepo } from './repos/songs.ts';
 export { syncRunsRepo } from './repos/sync-runs.ts';
-export { unmatchedRepo } from './repos/unmatched.ts';
+export { unmatchedRepo, type UnmatchedQuery } from './repos/unmatched.ts';
 export * from './schema.ts';
 export { withTransaction } from './transaction.ts';
