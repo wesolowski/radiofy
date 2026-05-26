@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly sync for %i
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00 Europe/Warsaw
+Persistent=true
+Unit=radiofy-sync@%i.service
+
+[Install]
+WantedBy=timers.target

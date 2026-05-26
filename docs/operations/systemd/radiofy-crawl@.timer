@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily crawl for %i
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Europe/Warsaw
+Persistent=true
+Unit=radiofy-crawl@%i.service
+
+[Install]
+WantedBy=timers.target
