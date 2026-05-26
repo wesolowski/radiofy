@@ -32,7 +32,10 @@ LOG=/home/youruser/radiofy/storage/logs/cron.log
 10 4 * * 0  cd $RADIOFY && $BUN run sync --station=rmf-maxx   >> $LOG 2>&1
 15 4 * * 0  cd $RADIOFY && $BUN run sync --station=radio-eska >> $LOG 2>&1
 
-# ─── Optional: monthly audit prune ──────────────────────────────────────────
-# Drops crawl_runs / playlist_sync_runs rows older than 90 days, every 1st
-# of the month at 05:00 Europe/Warsaw.
+# ─── Optional: monthly housekeeping ────────────────────────────────────────
+# 1st of the month at 05:00 Europe/Warsaw — keeps the local SQLite db small.
+# prune-audit  drops crawl_runs / playlist_sync_runs rows older than 90 days
+# prune-plays  drops the play history older than 30 days
+# sync still works fine — it only needs the rolling 7-day window.
 0  5 1 * *  cd $RADIOFY && $BUN run prune-audit >> $LOG 2>&1
+5  5 1 * *  cd $RADIOFY && $BUN run prune-plays >> $LOG 2>&1

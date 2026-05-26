@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, lte, sql } from 'drizzle-orm';
 import type { Db } from '../db.ts';
 import { type NewPlay, plays, songs } from '../schema.ts';
 
@@ -63,5 +63,21 @@ export const playsRepo = {
       playCount: Number(r.playCount),
       lastSeenAt: r.lastSeenAt,
     }));
+  },
+
+  countOlderThan: (db: Db, cutoffIso: string): number => {
+    const row = db
+      .select({ c: sql<number>`count(*)` })
+      .from(plays)
+      .where(lt(plays.playedAt, cutoffIso))
+      .get();
+    return Number(row?.c ?? 0);
+  },
+
+  deleteOlderThan: (db: Db, cutoffIso: string): number => {
+    const before = db.select({ c: sql<number>`count(*)` }).from(plays).get();
+    db.delete(plays).where(lt(plays.playedAt, cutoffIso)).run();
+    const after = db.select({ c: sql<number>`count(*)` }).from(plays).get();
+    return Number(before?.c ?? 0) - Number(after?.c ?? 0);
   },
 };
