@@ -1,5 +1,5 @@
-import { loadConfig } from '@radiofy/shared';
-import { readAuth } from './auth-storage.ts';
+import { loadConfig, logger } from '@radiofy/shared';
+import { readAuth, writeAuth } from './auth-storage.ts';
 import { SpotifyAuthExpiredError } from './errors.ts';
 
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
@@ -13,6 +13,7 @@ interface CachedToken {
 interface RefreshResponse {
   access_token: string;
   expires_in: number;
+  refresh_token?: string;
 }
 
 let cachedToken: CachedToken | null = null;
@@ -49,6 +50,22 @@ const performRefresh = async (authFilePath?: string): Promise<string> => {
     throw new Error(`Spotify token endpoint returned ${res.status}`);
   }
   const json = (await res.json()) as RefreshResponse;
+  if (
+    json.refresh_token !== undefined &&
+    json.refresh_token !== '' &&
+    json.refresh_token !== stored.refresh_token
+  ) {
+    writeAuth(
+      {
+        refresh_token: json.refresh_token,
+        scopes: stored.scopes,
+        obtained_at: new Date().toISOString(),
+        client_id_hint: stored.client_id_hint,
+      },
+      authFilePath,
+    );
+    logger.debug('spotify: rotated refresh_token persisted');
+  }
   cachedToken = {
     accessToken: json.access_token,
     expiresAt: Date.now() + json.expires_in * 1000 - REFRESH_SAFETY_MS,
