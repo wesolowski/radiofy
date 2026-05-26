@@ -7,7 +7,11 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
+    "@radiofy/database": "workspace:*",
+    "@radiofy/matcher": "workspace:*",
+    "@radiofy/normalizer": "workspace:*",
     "@radiofy/shared": "workspace:*",
+    "@radiofy/sources": "workspace:*",
     "@radiofy/spotify": "workspace:*"
   }
 }
