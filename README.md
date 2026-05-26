@@ -247,6 +247,13 @@ bun run sync --station=radio-zet
 Once that works, install a scheduler — templates are in
 [`docs/operations/`](docs/operations/) (see the next section).
 
+**Deploying to a remote server?** The OAuth flow assumes a local browser,
+so headless hosts need either an SSH port-forward or a copy of
+`storage/auth/spotify.json` from a machine that already authenticated. The
+full server-side checklist (Bun install, headless OAuth, persistent
+`storage/` paths, file permissions, log rotation) is in
+[`docs/operations/runbook.md` → "Server deployment"](docs/operations/runbook.md#server-deployment).
+
 ---
 
 ## What's in `docs/operations/`
@@ -280,6 +287,9 @@ Step-by-step operator guide:
 - **First-time setup** — Spotify dev app, `.env`, hand-creating the target
   Spotify playlists, filling `config/stations.json`, running
   `bun run spotify:auth`.
+- **Server deployment** — prerequisites, the two headless-OAuth options
+  (SSH port forward or local-auth + `scp`), persistent state directories,
+  file permissions, log rotation, server checklist.
 - **Daily operations** — `bun run status` for health checks.
 - **Triage workflow** — the LLM-assisted procedure for resolving unmatched
   songs through `export-unmatched` + `export-playlist`.
