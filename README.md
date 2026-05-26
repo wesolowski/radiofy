@@ -7,8 +7,8 @@ from a public aggregator, deduplicates and matches each song against the
 Spotify catalogue, and replaces a per-station Spotify playlist with the
 most-played tracks of the rolling 7-day window.
 
-> **Status**: planning complete, implementation not started. The architecture
-> and the 13-ticket backlog are in place; no application code exists yet.
+> **Status**: MVP implementation complete. All 13 backlog tickets are merged
+> and the worker runs end-to-end against the configured Spotify account.
 
 ---
 
@@ -117,8 +117,9 @@ bun run spotify:auth
 bun run sync --station=radio-zet
 ```
 
-A daily-crawl + weekly-sync schedule for `launchd` and `systemd` will ship in
-`docs/operations/` (ticket [RDFY-013](docs/ticket/backlog/todo/RDFY-013_operations-scheduling-runbook.md)).
+Once that works, install a scheduler: daily crawl + weekly sync templates for
+`launchd` and `systemd` are in [`docs/operations/`](docs/operations/), with the
+full operator guide in [`docs/operations/runbook.md`](docs/operations/runbook.md).
 
 ---
 
@@ -137,7 +138,9 @@ and the worker honors all `Retry-After` headers it receives.
 ## Documentation
 
 - [`docs/architecture/PROJECT_ARCHITECTURE.md`](docs/architecture/PROJECT_ARCHITECTURE.md) — full design, schema, decisions
-- [`docs/ticket/backlog/todo/`](docs/ticket/backlog/todo/) — 13 implementation tickets, in dependency order (`RDFY-001` first)
+- [`docs/operations/runbook.md`](docs/operations/runbook.md) — first-time setup, daily ops, recovery
+- [`docs/operations/`](docs/operations/) — `launchd` plists and `systemd` units/timers
+- [`docs/ticket/`](docs/ticket/) — implementation history (done/) and result documents
 - [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — contribution rules, code quality gate, public-repo hygiene
 
 ---

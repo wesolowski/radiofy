@@ -1,0 +1,12 @@
+[Unit]
+Description=Radiofy weekly Spotify sync (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/radiofy
+ExecStart=/usr/local/bin/bun run sync --station=%i
+
+[Install]
+WantedBy=default.target
