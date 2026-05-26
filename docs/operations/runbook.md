@@ -138,6 +138,130 @@ bun run prune-plays                       # actually delete (default --keep-days
 
 ---
 
+## Server deployment
+
+The runbook above assumes the operator is sitting at the same machine the
+worker will run on. Deploying to a remote Linux server adds three extra
+concerns: getting Bun on the host, getting through the Spotify OAuth flow
+without a browser, and keeping persistent state in the right place.
+
+### Prerequisites on the server
+
+| Requirement | Notes |
+|---|---|
+| **Bun** | `curl -fsSL https://bun.sh/install \| bash` — installs into `~/.bun/bin/bun`. Confirm with `bun --version`. The crontab example expects an absolute path, so capture `which bun` once installed. |
+| **git** | Needed for the initial clone and later `git pull` updates. |
+| **A dedicated user** | Recommended. The worker only needs its own home directory; no `sudo` or system services. |
+| **System timezone** | The schedule pins to `Europe/Warsaw` via `CRON_TZ`, so the host timezone is free. If the host is already on `Europe/Warsaw`, remove the `CRON_TZ` line from the crontab. |
+| **Outbound HTTPS** | The worker needs `:443` to `developer.spotify.com`, `api.spotify.com`, `accounts.spotify.com`, and the aggregator host (`odsluchane.eu`). No inbound ports are required at runtime. |
+
+### Headless OAuth — two options
+
+`bun run spotify:auth` listens on `127.0.0.1:8888` for the PKCE callback and
+opens a browser. On a headless server there is no browser, so pick one of
+the two flows below.
+
+**Option A — SSH port forwarding (recommended; keeps the token on the server).**
+
+```bash
+# Local machine: open the tunnel and keep this session running.
+ssh -L 8888:127.0.0.1:8888 <user>@<host>
+
+# Inside the SSH session, on the server:
+cd /path/to/radiofy
+bun run spotify:auth
+```
+
+The server prints the Spotify consent URL. Paste it into the browser on
+your **local** laptop. Because of the `-L` tunnel, the redirect to
+`http://127.0.0.1:8888/callback` is forwarded back to the server, the auth
+flow completes, and `storage/auth/spotify.json` is written on the server —
+no copying needed.
+
+**Option B — Auth locally, copy the token.**
+
+If port forwarding is not an option (jump hosts, restrictive networks):
+
+```bash
+# Local machine — fully working checkout with the same .env:
+bun run spotify:auth
+
+# Then ship the token to the server:
+scp storage/auth/spotify.json <user>@<host>:/path/to/radiofy/storage/auth/spotify.json
+ssh <user>@<host> 'chmod 0600 /path/to/radiofy/storage/auth/spotify.json'
+```
+
+Either way, after this step the server has a valid refresh token and never
+needs a browser again until Spotify revokes it.
+
+### Persistent state under `storage/`
+
+Everything the worker keeps between runs lives under `storage/` inside the
+checkout. The worker creates these directories on first use; they must
+survive across runs and across `git pull`.
+
+| Path | Contents | Backup-worthy? |
+|---|---|---|
+| `storage/auth/spotify.json` | OAuth refresh token, mode `0600` | yes — re-auth otherwise |
+| `storage/db/radiofy.db` | SQLite: songs, plays, matches, audit, unmatched | yes — losing it forces a fresh crawl + match cycle |
+| `storage/overrides.json` | Curated manual matches | yes — re-curate otherwise |
+| `storage/logs/` | Per-command logs + `cron.log` | no — recreated on every run |
+
+`storage/` is already in `.gitignore`. Do **not** check any of it in.
+
+### File permissions
+
+After the first `spotify:auth` (or after `scp`), verify:
+
+```bash
+ls -l storage/auth/spotify.json
+# expected: -rw------- (0600), owned by the worker user
+```
+
+If the mode is wrong (`0644`, world-readable), `chmod 0600` it.
+
+### Log rotation
+
+`storage/logs/cron.log` is append-only — without rotation it grows forever.
+Either install a `logrotate` snippet:
+
+```
+/path/to/radiofy/storage/logs/cron.log {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+…or accept that the per-command JSON logs at
+`storage/logs/<command>-<station>.log` are truncated on every run and treat
+`cron.log` as best-effort.
+
+### Server setup checklist
+
+1. Install Bun on the server: `curl -fsSL https://bun.sh/install | bash`
+2. `git clone` the repo to the location the cron job will reference
+3. `cp .env.example .env` and fill in Spotify credentials
+4. Edit `config/stations.json` for the stations you want
+5. Create the matching empty playlists in Spotify (one per station)
+6. Run OAuth via **Option A** (SSH port forward) or **Option B** (local
+   auth + `scp`) — see above
+7. Verify: `ls -l storage/auth/spotify.json` is `0600`
+8. Smoke-test: `bun run crawl --station=<id> --days=1` then
+   `bun run sync --station=<id>` — the target playlist now has tracks
+9. Edit the path variables at the top of
+   `docs/operations/cron/crontab.example`, then `crontab -e` and paste
+10. `crontab -l` to verify, then watch `storage/logs/cron.log` after the
+    next scheduled run
+
+`bun run status` (any time after the first run) returns exit `0` once a
+recent crawl succeeded for every enabled station.
+
+---
+
 ## Scheduling
 
 The worker is a one-shot CLI. Use the OS scheduler. Three options ship in
