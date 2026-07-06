@@ -96,15 +96,15 @@ Fetches one or more days of playlist HTML from the configured source, parses
 it, normalizes the songs, and writes the results into the local SQLite
 database. **No Spotify calls** — this is purely the radio-side ingestion step.
 Without `--station` it crawls every enabled station in `config/stations.json`;
-pass `--station=<id>` to target a single one. Defaults to yesterday only
-(`--day` defaults to yesterday in `Europe/Warsaw`). Pass `--days=7` to backfill
-the last week in a single run. `--day` overrides `--days` when both are given.
-Running twice on the same `(station, day)` is idempotent thanks to a unique
-constraint. In an all-stations run a failing station does not stop the rest;
-the command exits non-zero if any station failed.
+pass `--station=<id>` to target a single one. Defaults to the last 7 days
+(the week ending yesterday in `Europe/Warsaw`). Pass `--days=N` for a different
+range, or `--day=YYYY-MM-DD` for a single date; `--day` overrides `--days` when
+both are given. Running twice on the same `(station, day)` is idempotent thanks
+to a unique constraint. In an all-stations run a failing station does not stop
+the rest; the command exits non-zero if any station failed.
 
 Use it when: the daily cron job fires (no flags); after a fresh setup or
-multi-day outage (`--days=7`); to re-crawl a specific date (`--day=YYYY-MM-DD`).
+multi-day outage (`--days=N`); to re-crawl a specific date (`--day=YYYY-MM-DD`).
 
 #### `bun run sync [--station=<id>]`
 

@@ -73,8 +73,8 @@ bun run sync  --station=radio-zet
 ```
 
 (Use `--day=YYYY-MM-DD` instead of `--days=7` to crawl one specific day. The
-cron job continues to call `bun run crawl --station=<id>` without any flags
-and gets the documented "yesterday only" behaviour.)
+cron job calls `bun run crawl --station=<id>` without any flags and gets the
+default last-7-days behaviour.)
 
 The Spotify playlist now contains the most-played tracks from the configured station for the last seven days.
 
