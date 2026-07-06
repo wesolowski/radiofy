@@ -10,7 +10,7 @@ low
 medium
 
 ## Status
-review
+done
 
 ## Owner
 implementer
