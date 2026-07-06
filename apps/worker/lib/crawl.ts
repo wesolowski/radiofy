@@ -14,6 +14,7 @@ import { yesterdayInTz } from './yesterday.ts';
 
 const OVERLAP_CUTOFF_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_DAYS = 7;
 
 interface SourceModule {
   dayUrls: (slug: string, day: string) => string[];
@@ -59,7 +60,7 @@ const shiftIso = (day: string, offsetDays: number): string => {
 const resolveDays = (options: CrawlOptions, nowDate: Date): string[] => {
   if (options.day !== undefined) return [options.day];
   const yesterday = yesterdayInTz(nowDate);
-  const count = options.days ?? 1;
+  const count = options.days ?? DEFAULT_DAYS;
   const days: string[] = [];
   for (let i = 0; i < count; i++) {
     days.push(shiftIso(yesterday, -i));
