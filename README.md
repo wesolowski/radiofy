@@ -90,27 +90,32 @@ applying any pending database migrations and then does its work.
 
 ### Daily / weekly (scheduler)
 
-#### `bun run crawl --station=<id> [--day=YYYY-MM-DD] [--days=N]`
+#### `bun run crawl [--station=<id>] [--day=YYYY-MM-DD] [--days=N]`
 
-Fetches one or more days of playlist HTML from the configured source for one
-station, parses it, normalizes the songs, and writes the results into the
-local SQLite database. **No Spotify calls** — this is purely the radio-side
-ingestion step. Defaults to yesterday only (`--day` defaults to yesterday in
-`Europe/Warsaw`). Pass `--days=7` to backfill the last week in a single run.
-`--day` overrides `--days` when both are given. Running twice on the same
-`(station, day)` is idempotent thanks to a unique constraint.
+Fetches one or more days of playlist HTML from the configured source, parses
+it, normalizes the songs, and writes the results into the local SQLite
+database. **No Spotify calls** — this is purely the radio-side ingestion step.
+Without `--station` it crawls every enabled station in `config/stations.json`;
+pass `--station=<id>` to target a single one. Defaults to yesterday only
+(`--day` defaults to yesterday in `Europe/Warsaw`). Pass `--days=7` to backfill
+the last week in a single run. `--day` overrides `--days` when both are given.
+Running twice on the same `(station, day)` is idempotent thanks to a unique
+constraint. In an all-stations run a failing station does not stop the rest;
+the command exits non-zero if any station failed.
 
 Use it when: the daily cron job fires (no flags); after a fresh setup or
 multi-day outage (`--days=7`); to re-crawl a specific date (`--day=YYYY-MM-DD`).
 
-#### `bun run sync --station=<id>`
+#### `bun run sync [--station=<id>]`
 
 The end-to-end pipeline. Looks at the rolling 7-day play history for the
 station, resolves each song to a Spotify track (manual override → cache →
 live search), groups by resolved track, sorts by play count, then clears
 the Spotify playlist whose name matches the station's `playlistName` and
 appends the resolved tracks back in chunks of 100. **This is the only
-command that writes to Spotify.**
+command that writes to Spotify.** Without `--station` it syncs every enabled
+station; a failing station does not stop the rest and the command exits
+non-zero if any station failed.
 
 Use it when: the weekly cron job fires, or you've just added a manual
 override and want to apply it immediately.

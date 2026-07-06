@@ -10,6 +10,16 @@ describe('parseStationArgs', () => {
     expect(() => parseStationArgs([])).toThrow(/--station/);
   });
 
+  test('with allowAllStations=true, missing --station returns no station', () => {
+    expect(parseStationArgs([], { allowAllStations: true })).toEqual({});
+  });
+
+  test('with allowAllStations=true, --station is still honored', () => {
+    expect(parseStationArgs(['--station=radio-zet'], { allowAllStations: true })).toEqual({
+      station: 'radio-zet',
+    });
+  });
+
   test('with allowDay=false, --day is ignored', () => {
     expect(parseStationArgs(['--station=radio-zet', '--day=2026-05-24'])).toEqual({
       station: 'radio-zet',

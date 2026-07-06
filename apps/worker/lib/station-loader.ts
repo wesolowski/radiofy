@@ -15,3 +15,8 @@ export const loadStation = (id: string, stationsPath = 'config/stations.json'): 
   }
   return { kind: 'ok', station: found };
 };
+
+export const loadEnabledStationIds = (stationsPath = 'config/stations.json'): string[] =>
+  loadStations(stationsPath)
+    .filter((s) => s.enabled)
+    .map((s) => s.id);
