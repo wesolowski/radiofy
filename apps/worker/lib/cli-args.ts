@@ -6,13 +6,33 @@ export interface StationArgs {
   days?: number;
 }
 
+export interface OptionalStationArgs {
+  station?: string;
+  day?: string;
+  days?: number;
+}
+
+interface ParseOptions {
+  allowDay?: boolean;
+  allowDays?: boolean;
+  allowAllStations?: boolean;
+}
+
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS = 31;
 
-export const parseStationArgs = (
+export function parseStationArgs(
+  argv?: string[],
+  options?: ParseOptions & { allowAllStations?: false },
+): StationArgs;
+export function parseStationArgs(
+  argv: string[],
+  options: ParseOptions & { allowAllStations: true },
+): OptionalStationArgs;
+export function parseStationArgs(
   argv: string[] = process.argv.slice(2),
-  options: { allowDay?: boolean; allowDays?: boolean } = {},
-): StationArgs => {
+  options: ParseOptions = {},
+): OptionalStationArgs {
   const parsed = parseArgs({
     args: argv,
     options: {
@@ -23,11 +43,12 @@ export const parseStationArgs = (
     strict: false,
   });
   const station = parsed.values.station;
-  if (typeof station !== 'string' || station.length === 0) {
+  const hasStation = typeof station === 'string' && station.length > 0;
+  if (!hasStation && options.allowAllStations !== true) {
     throw new Error('--station=<id> is required');
   }
 
-  const result: StationArgs = { station };
+  const result: OptionalStationArgs = hasStation ? { station } : {};
 
   if (options.allowDay === true) {
     const day = parsed.values.day;
@@ -54,4 +75,4 @@ export const parseStationArgs = (
   }
 
   return result;
-};
+}
