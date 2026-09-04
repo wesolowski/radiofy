@@ -132,8 +132,9 @@ you with an up-to-date playlist built from the days that did arrive. Exits `0`
 when everything succeeded, `1` if anything failed, `2` if anything was blocked
 by a run already in flight.
 
-Use it when: the weekly cron job fires. This is the command a scheduler
-should call.
+Use it when: the weekly cron job fires. The scheduler templates shipped in
+`docs/operations/` still install the split daily-crawl / weekly-sync jobs;
+switching them over to this command is a separate ticket.
 
 ### Setup (one-time per machine)
 
