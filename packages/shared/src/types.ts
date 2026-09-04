@@ -13,6 +13,16 @@ export interface Station {
   enabled: boolean;
 }
 
+export interface Chart {
+  id: string;
+  name: string;
+  source: string;
+  url: string;
+  playlistName: string;
+  minEntries: number;
+  enabled: boolean;
+}
+
 export interface RawSong {
   sourceTrackId: SourceTrackId;
   displayText: string;
