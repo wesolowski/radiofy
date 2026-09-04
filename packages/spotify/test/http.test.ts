@@ -40,6 +40,17 @@ const status =
   () =>
     new Response('', { status: code, headers });
 
+const installHangingFetch = (): void => {
+  calls = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const resolved = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+    calls.push({ url: resolved });
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+    });
+  }) as typeof globalThis.fetch;
+};
+
 describe('spotifyFetch retry behaviour', () => {
   test('passes through a 200 response', async () => {
     installFetchSequence([okJson({ ok: true })]);
@@ -84,5 +95,16 @@ describe('spotifyFetch retry behaviour', () => {
     await spotifyFetch('https://api.spotify.com/v1/test', 'token');
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(1800);
+  });
+});
+
+describe('spotifyFetch: request deadline', () => {
+  test('retries a request that never answers, then reports it as transient', async () => {
+    installHangingFetch();
+
+    await expect(
+      spotifyFetch('https://api.spotify.com/v1/me', 'token', { timeoutMs: 30 }),
+    ).rejects.toBeInstanceOf(SpotifyTransientError);
+    expect(calls).toHaveLength(4);
   });
 });

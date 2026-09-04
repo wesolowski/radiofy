@@ -26,11 +26,25 @@ export const spotifyFetch = async (
 ): Promise<Response> => {
   const { timeoutMs = REQUEST_TIMEOUT_MS, ...init } = options;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const res = await fetch(url, {
-      ...init,
-      headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        ...init,
+        headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      const timedOut =
+        err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      if (!timedOut) throw err;
+      if (attempt === MAX_RETRIES) {
+        throw new SpotifyTransientError(`Spotify did not answer within ${timeoutMs}ms: ${url}`);
+      }
+      const wait = 2 ** attempt * BACKOFF_BASE_MS;
+      logger.warn('spotify: no answer, backing off', { url, timeoutMs, wait });
+      await sleep(wait);
+      continue;
+    }
 
     if (res.status === 401) {
       throw new SpotifyAuthExpiredError(
