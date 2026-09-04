@@ -40,7 +40,7 @@ LOG_LEVEL=info
 
 For each station the worker will sync, create an empty playlist in Spotify (Web or Desktop client). The exact name must match what goes into `config/stations.json`. Recommended names: `Radio Zet Weekly Playlist`, `Radio RMF FM Weekly Playlist`, etc.
 
-### 5. Fill `config/stations.json`
+### 5. Review `config/stations.json`
 
 ```json
 [
@@ -123,13 +123,18 @@ After step 6, the resolved entries in `unmatched_songs` get their `resolved_at` 
 
 ---
 
-## One-off: play rows under retired station ids
+## One-off: rows under retired station ids
 
-Installations that ran before the station ids were unified may hold play rows
-under the older spellings (`radio-zet`, `radio-eska`, `rmf-fm`, `rmf-maxx`).
-They are inert — every command reads the ids from `config/stations.json`, so
-those rows are never selected again — but they inflate the database and split
-`top-played` history.
+Installations that ran before the station ids were unified may hold rows under
+the older spellings (`radio-zet`, `radio-eska`, `rmf-fm`, `rmf-maxx`) — in
+`plays`, and also in `unmatched_songs` and `crawl_runs`.
+
+Anything that reads the station list ignores them: `crawl`, `sync` and
+`top-played` all work from `config/stations.json`, so a retired id is simply
+never scanned. One command does surface them: `bun run export-unmatched`
+without `--station` lists every open row regardless of station, so retired
+entries land in your correction backlog and get curated for a station that no
+longer exists.
 
 Check what is there, and whether it duplicates rows you already have under the
 current ids:
@@ -154,11 +159,21 @@ sqlite3 storage/db/radiofy.db "
 ```
 
 When that count equals the retired id's total row count, nothing unique is
-lost by removing them:
+lost by removing them. Repeat the check for each retired id you found — the
+statement above names one id at a time on purpose, so a copy-paste cannot
+delete more than you verified:
 
 ```bash
-sqlite3 storage/db/radiofy.db "delete from plays where station = 'radio-zet';"
+sqlite3 storage/db/radiofy.db "
+  delete from plays           where station = 'radio-zet';
+  delete from unmatched_songs where station = 'radio-zet';
+  delete from crawl_runs      where station = 'radio-zet';"
 ```
+
+The duplicate check above covers `plays` only. `unmatched_songs` and
+`crawl_runs` carry no history worth keeping for a station you no longer crawl:
+the first is a correction backlog that can only be acted on for a configured
+station, the second an audit trail of runs that will never repeat.
 
 This is deliberately not automated: station ids are operator configuration, and
 a migration shipped with the code would rename or delete ids that are perfectly
