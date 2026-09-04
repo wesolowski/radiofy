@@ -119,8 +119,22 @@ command that writes to Spotify.** Without `--station` it syncs every enabled
 station; a failing station does not stop the rest and the command exits
 non-zero if any station failed.
 
-Use it when: the weekly cron job fires, or you've just added a manual
-override and want to apply it immediately.
+Use it when: you've just added a manual override and want to apply it
+immediately, or you need to re-sync without re-crawling.
+
+#### `bun run weekly`
+
+The whole weekly refresh in one call: crawls every enabled station over the
+default window, then syncs every enabled station. Takes no flags — use `crawl`
+and `sync` directly for anything narrower. The sync phase runs even when the
+crawl phase lost days or stations, so a partial upstream outage still leaves
+you with an up-to-date playlist built from the days that did arrive. Exits `0`
+when everything succeeded, `1` if anything failed, `2` if anything was blocked
+by a run already in flight.
+
+Use it when: the weekly cron job fires. The scheduler templates shipped in
+`docs/operations/` still install the split daily-crawl / weekly-sync jobs;
+switching them over to this command is a separate ticket.
 
 ### Setup (one-time per machine)
 
