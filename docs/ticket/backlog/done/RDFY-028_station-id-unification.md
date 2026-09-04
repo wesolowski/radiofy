@@ -10,7 +10,7 @@ low
 high
 
 ## Status
-review
+done
 
 ## Background
 The project carries two competing spellings for the same four stations. The
