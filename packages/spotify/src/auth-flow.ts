@@ -8,6 +8,7 @@ export const SCOPES = [
 ] as const;
 
 export const TOKEN_URL = 'https://accounts.spotify.com/api/token';
+const REQUEST_TIMEOUT_MS = 20_000;
 export const AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';
 
 export interface AuthRequest {
@@ -64,6 +65,7 @@ export const exchangeCode = async ({ code, verifier }: ExchangeInput): Promise<T
       Authorization: basicAuthHeader(config.SPOTIFY_CLIENT_ID, config.SPOTIFY_CLIENT_SECRET),
     },
     body,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text();

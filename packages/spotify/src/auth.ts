@@ -4,6 +4,7 @@ import { SpotifyAuthExpiredError } from './errors.ts';
 
 const TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const REFRESH_SAFETY_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 interface CachedToken {
   accessToken: string;
@@ -42,6 +43,7 @@ const performRefresh = async (authFilePath?: string): Promise<string> => {
       Authorization: basicAuth(config.SPOTIFY_CLIENT_ID, config.SPOTIFY_CLIENT_SECRET),
     },
     body,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (res.status === 400 || res.status === 401) {
     throw new SpotifyAuthExpiredError();

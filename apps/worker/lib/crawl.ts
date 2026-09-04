@@ -17,14 +17,27 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DAYS = 7;
 const MAX_RETRIES = 2;
 const BACKOFF_BASE_MS = 500;
+/**
+ * Comfortably above the ~0.4s a healthy response takes, and comfortably below
+ * the 60s the aggregator's gateway spends before giving up — so an unanswered
+ * request costs seconds rather than a minute, three times over.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchWithRetry = async (url: string, fetchFn: typeof globalThis.fetch): Promise<Response> => {
+const isTimeout = (err: unknown): boolean =>
+  err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+
+const fetchWithRetry = async (
+  url: string,
+  fetchFn: typeof globalThis.fetch,
+  timeoutMs: number,
+): Promise<Response> => {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const wait = 2 ** attempt * BACKOFF_BASE_MS;
     try {
-      const res = await fetchFn(url);
+      const res = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (res.status >= 500 && res.status < 600 && attempt < MAX_RETRIES) {
         logger.warn('crawl: server error, backing off', { url, status: res.status, wait });
         await sleep(wait);
@@ -32,11 +45,14 @@ const fetchWithRetry = async (url: string, fetchFn: typeof globalThis.fetch): Pr
       }
       return res;
     } catch (err) {
-      if (attempt === MAX_RETRIES) throw err;
+      const reason = isTimeout(err)
+        ? new Error(`no answer within ${timeoutMs}ms from ${url}`)
+        : err;
+      if (attempt === MAX_RETRIES) throw reason;
       logger.warn('crawl: fetch error, backing off', {
         url,
         wait,
-        error: err instanceof Error ? err.message : String(err),
+        error: reason instanceof Error ? reason.message : String(reason),
       });
       await sleep(wait);
     }
@@ -63,6 +79,7 @@ export interface CrawlOptions {
   db?: Db;
   fetchFn?: typeof globalThis.fetch;
   stationsPath?: string;
+  timeoutMs?: number;
   now?: () => Date;
 }
 
@@ -102,6 +119,7 @@ const crawlOneDay = async (
   station: { id: string; source: string; sourceSlug: string },
   day: string,
   fetchFn: typeof globalThis.fetch,
+  timeoutMs: number,
   now: () => Date,
 ): Promise<{ songsSeen: number; inserted: number }> => {
   const run = crawlRunsRepo.open(db, {
@@ -115,7 +133,7 @@ const crawlOneDay = async (
     logger.info('crawl: fetching', { station: station.id, day, urls: urls.length });
     const songs: RawSong[] = [];
     for (const url of urls) {
-      const res = await fetchWithRetry(url, fetchFn);
+      const res = await fetchWithRetry(url, fetchFn, timeoutMs);
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
       const html = await res.text();
       songs.push(...source.parse({ html, station: station.id, day }));
@@ -171,6 +189,7 @@ export const runCrawl = async (options: CrawlOptions): Promise<CrawlOutcome> => 
   const db = options.db ?? openDb();
   applyMigrations(db);
   const fetchFn = options.fetchFn ?? globalThis.fetch;
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const now = options.now ?? ((): Date => new Date());
 
   const stationResult = loadStation(options.station, options.stationsPath);
@@ -218,6 +237,7 @@ export const runCrawl = async (options: CrawlOptions): Promise<CrawlOutcome> => 
         { id: station.id, source: station.source, sourceSlug: station.sourceSlug },
         day,
         fetchFn,
+        timeoutMs,
         now,
       );
       totalSongs += result.songsSeen;

@@ -3,6 +3,8 @@ import { SpotifyAuthExpiredError, SpotifyTransientError } from './errors.ts';
 
 const MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 500;
+/** Bounds a request that is accepted and then never answered. */
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -12,8 +14,9 @@ const parseRetryAfter = (value: string | null): number => {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 1;
 };
 
-export interface SpotifyFetchOptions extends Omit<RequestInit, 'headers'> {
+export interface SpotifyFetchOptions extends Omit<RequestInit, 'headers' | 'signal'> {
   headers?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 export const spotifyFetch = async (
@@ -21,10 +24,12 @@ export const spotifyFetch = async (
   accessToken: string,
   options: SpotifyFetchOptions = {},
 ): Promise<Response> => {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...init } = options;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const res = await fetch(url, {
-      ...options,
+      ...init,
       headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (res.status === 401) {
