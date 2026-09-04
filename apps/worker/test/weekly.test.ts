@@ -13,6 +13,8 @@ import { runWeekly } from '../lib/weekly.ts';
 
 const FIXTURE_PATH = 'packages/sources/test/malopolskie-media/fixtures/radio-zet-2026-05-24.html';
 
+const MATCHED_TRACK_ID = 'aaaaaaaaaaaaaaaaaaaaaa';
+
 const STATION = {
   id: 'radio-zet',
   name: 'ZET',
@@ -38,7 +40,28 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const installFetch = (radioResponder: (url: string) => Response): void => {
+const echoedSearchHit = (searchUrl: string): Response => {
+  const q = new URL(searchUrl).searchParams.get('q') ?? '';
+  const parsed = /^artist:(.*) track:(.*)$/.exec(q);
+  if (parsed === null) return jsonResponse({ tracks: { items: [] } });
+  return jsonResponse({
+    tracks: {
+      items: [
+        {
+          id: MATCHED_TRACK_ID,
+          name: parsed[2],
+          artists: [{ name: parsed[1] }],
+          duration_ms: 200_000,
+        },
+      ],
+    },
+  });
+};
+
+const installFetch = (
+  radioResponder: (url: string) => Response,
+  search: 'match' | 'none' = 'none',
+): void => {
   playlistWrites = [];
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const resolved = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
@@ -47,7 +70,9 @@ const installFetch = (radioResponder: (url: string) => Response): void => {
       return jsonResponse({ items: [{ id: 'PID', name: STATION.playlistName }], next: null });
     }
     if (resolved.includes('/v1/search')) {
-      return jsonResponse({ tracks: { items: [] } });
+      return search === 'match'
+        ? echoedSearchHit(resolved)
+        : jsonResponse({ tracks: { items: [] } });
     }
     if (resolved.includes('/v1/playlists/')) {
       playlistWrites.push(method);
@@ -75,7 +100,7 @@ afterEach(() => {
 
 describe('runWeekly', () => {
   test('crawls and then syncs every enabled station', async () => {
-    installFetch(() => new Response(html, { status: 200 }));
+    installFetch(() => new Response(html, { status: 200 }), 'match');
 
     const outcome = await runWeekly({
       db,
@@ -93,8 +118,11 @@ describe('runWeekly', () => {
     expect(lastCrawl).toBeDefined();
     expect(lastCrawl?.songsSeen ?? 0).toBeGreaterThan(0);
 
-    expect(syncRunsRepo.lastSuccess(db, STATION.id)).toBeDefined();
-    expect(playlistWrites).toEqual([]);
+    const lastSync = syncRunsRepo.lastSuccess(db, STATION.id);
+    expect(lastSync).toBeDefined();
+    expect(lastSync?.tracksWritten ?? 0).toBeGreaterThan(0);
+    expect(playlistWrites).toContain('PUT');
+    expect(playlistWrites).toContain('POST');
   });
 
   test('a permanently failing crawl day does not stop the sync phase', async () => {
@@ -115,6 +143,7 @@ describe('runWeekly', () => {
     expect(outcome.failed).toBe(true);
     expect(outcome.blocked).toBe(false);
     expect(syncRunsRepo.lastSuccess(db, STATION.id)).toBeDefined();
+    expect(playlistWrites).toEqual([]);
   });
 
   test('skips a disabled station in both phases', async () => {

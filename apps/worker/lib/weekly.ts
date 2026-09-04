@@ -8,7 +8,6 @@ export interface WeeklyOptions {
   db?: Db;
   stationsPath?: string;
   overridesPath?: string;
-  fetchFn?: typeof globalThis.fetch;
   accessToken?: string;
   now?: () => Date;
 }
@@ -36,7 +35,6 @@ export const runWeekly = async (options: WeeklyOptions = {}): Promise<WeeklyOutc
   const crawlOptionsFor = (station: string): CrawlOptions => {
     const opts: CrawlOptions = { station, db };
     if (options.stationsPath !== undefined) opts.stationsPath = options.stationsPath;
-    if (options.fetchFn !== undefined) opts.fetchFn = options.fetchFn;
     if (options.now !== undefined) opts.now = options.now;
     return opts;
   };
