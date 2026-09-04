@@ -100,8 +100,10 @@ pass `--station=<id>` to target a single one. Defaults to the last 7 days
 (the week ending yesterday in `Europe/Warsaw`). Pass `--days=N` for a different
 range, or `--day=YYYY-MM-DD` for a single date; `--day` overrides `--days` when
 both are given. Running twice on the same `(station, day)` is idempotent thanks
-to a unique constraint. In an all-stations run a failing station does not stop
-the rest; the command exits non-zero if any station failed.
+to a unique constraint. Transient upstream errors (HTTP 5xx, network blips) are
+retried with backoff, and a day that still fails is skipped without aborting the
+station's remaining days. In an all-stations run a failing station does not stop
+the rest; the command exits non-zero if any day or station failed.
 
 Use it when: the daily cron job fires (no flags); after a fresh setup or
 multi-day outage (`--days=N`); to re-crawl a specific date (`--day=YYYY-MM-DD`).

@@ -187,20 +187,132 @@ describe('runCrawl', () => {
     expect(outcome.kind).toBe('ok');
   });
 
-  test('on fetch failure, closes the run with the error and re-throws', async () => {
-    const failFetch = (async () =>
-      new Response('boom', { status: 503 })) as unknown as typeof globalThis.fetch;
-    await expect(
-      runCrawl({
-        station: 'radio-zet',
-        day: '2026-05-24',
-        db,
-        stationsPath,
-        fetchFn: failFetch,
-      }),
-    ).rejects.toThrow(/HTTP 503/);
+  test('a day that keeps 5xx-ing is retried, closed with the error, and isolated', async () => {
+    let calls = 0;
+    const failFetch = (async () => {
+      calls++;
+      return new Response('boom', { status: 503 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn: failFetch,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.daysFailed).toBe(1);
+      expect(outcome.songsSeen).toBe(0);
+      expect(outcome.inserted).toBe(0);
+    }
+    expect(calls).toBe(3);
     const stuck = crawlRunsRepo.findStuckOlderThan(db, '9999-12-31T00:00:00.000Z');
     expect(stuck).toEqual([]);
+  });
+
+  test('retries a transient 5xx and recovers', async () => {
+    let calls = 0;
+    const fetchFn = (async () => {
+      calls++;
+      if (calls === 1) return new Response('', { status: 500 });
+      return new Response(html, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.daysFailed).toBe(0);
+      expect(outcome.inserted).toBeGreaterThan(0);
+    }
+    expect(calls).toBe(2);
+  });
+
+  test('retries a 5xx twice before a 200 and still recovers', async () => {
+    let calls = 0;
+    const fetchFn = (async () => {
+      calls++;
+      if (calls <= 2) return new Response('', { status: 500 });
+      return new Response(html, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.daysFailed).toBe(0);
+      expect(outcome.inserted).toBeGreaterThan(0);
+    }
+    expect(calls).toBe(3);
+  });
+
+  test('retries a thrown network error and recovers', async () => {
+    let calls = 0;
+    const fetchFn = (async () => {
+      calls++;
+      if (calls === 1) throw new Error('ECONNRESET');
+      return new Response(html, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysFailed).toBe(0);
+    expect(calls).toBe(2);
+  });
+
+  test('does not retry a 4xx response', async () => {
+    let calls = 0;
+    const fetchFn = (async () => {
+      calls++;
+      return new Response('', { status: 404 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysFailed).toBe(1);
+    expect(calls).toBe(1);
+  });
+
+  test('a failing day does not abort the rest of the range', async () => {
+    const fakeNow = new Date('2026-05-26T12:00:00.000Z');
+    const fetchFn = (async (url: string | URL | Request) => {
+      const u = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (u.includes('2026-05-24')) return new Response('', { status: 500 });
+      return new Response(html, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      days: 2,
+      db,
+      stationsPath,
+      fetchFn,
+      now: (): Date => fakeNow,
+    });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.daysCrawled).toBe(2);
+      expect(outcome.daysFailed).toBe(1);
+      expect(outcome.inserted).toBeGreaterThan(0);
+    }
   });
 
   test('--days=3 opens three crawl_runs rows for the three days before yesterday', async () => {
