@@ -1,0 +1,10 @@
+[Unit]
+Description=Radiofy Chart refresh schedule
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 Europe/Warsaw
+Persistent=true
+Unit=radiofy-chart.service
+
+[Install]
+WantedBy=timers.target

@@ -320,76 +320,171 @@ recent crawl succeeded for every enabled station.
 
 ## Scheduling
 
-The worker is a one-shot CLI. Use the OS scheduler. Three options ship in
-`docs/operations/`:
+The worker is a one-shot CLI, so the OS scheduler owns the timing. Two jobs are
+worth scheduling:
+
+| Job | Cadence | What it does |
+|---|---|---|
+| `weekly` | Sunday 04:00 Europe/Warsaw | crawls the past week for every enabled station, then replaces every station playlist |
+| `chart` | daily 05:00 Europe/Warsaw | replaces the chart playlist from the current chart page |
+
+Both run through `docs/operations/bin/radiofy-cron.sh`, which reports the
+outcome to a dead-man switch (see the next section). The wrapper works with no
+monitoring configured, so you can install the schedule first and add monitoring
+after.
+
+Three scheduler options ship in `docs/operations/`:
 
 | Scheduler | When to pick it | Where |
 |---|---|---|
-| **cron** | Linux server, "one-line per job" is the simplest fit | `docs/operations/cron/crontab.example` |
+| **cron** | Linux server, simplest fit | `docs/operations/cron/crontab.example` |
 | **launchd** | macOS | `docs/operations/launchd/*.plist.template` |
-| **systemd-timer** | Linux server, you already manage other systemd units | `docs/operations/systemd/radiofy-*.{service,timer}` |
-
-For a typical Linux server running radiofy as its only scheduled job, cron is
-the easiest fit. Pick whichever matches the host you actually deploy on.
+| **systemd-timer** | Linux server already running other systemd units | `docs/operations/systemd/radiofy-*.{service,timer}` |
 
 ### Linux (cron, recommended for most servers)
 
-Open `docs/operations/cron/crontab.example`, adjust the three variables at the
-top (`RADIOFY`, `BUN`, `LOG`) to match your checkout, then install:
+Open `docs/operations/cron/crontab.example`, adjust `RADIOFY`, `BUN` and `RUN`
+to match your checkout, then install:
 
 ```bash
 crontab -e   # paste the contents, save, quit
 crontab -l   # verify
 ```
 
-The example pins the schedule to `Europe/Warsaw` via `CRON_TZ`, so the times
-fire correctly even if the server's clock is UTC. Output from each run is
-appended to `storage/logs/cron.log`; the worker also writes its own
-structured-JSON file at `storage/logs/<command>-<station>.log` that is
-truncated on every invocation.
+`CRON_TZ` pins the schedule to `Europe/Warsaw`, so the times fire correctly even
+if the server's clock is UTC. Output from each run is appended to
+`storage/logs/cron.log`; the worker also writes its own structured-JSON file at
+`storage/logs/<command>-<station>.log`, truncated on every invocation.
 
 ### macOS (launchd)
 
-Templates: `docs/operations/launchd/com.radiofy.{crawl,sync}.STATION.plist.template`.
-
 ```bash
-# Replace STATION and the absolute path, then:
 mkdir -p ~/Library/LaunchAgents
-sed -e "s|STATION|zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
-  docs/operations/launchd/com.radiofy.crawl.STATION.plist.template \
-  > ~/Library/LaunchAgents/com.radiofy.crawl.zet.plist
-launchctl load ~/Library/LaunchAgents/com.radiofy.crawl.zet.plist
-
-sed -e "s|STATION|zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
-  docs/operations/launchd/com.radiofy.sync.STATION.plist.template \
-  > ~/Library/LaunchAgents/com.radiofy.sync.zet.plist
-launchctl load ~/Library/LaunchAgents/com.radiofy.sync.zet.plist
-
+for job in weekly chart; do
+  sed -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
+    "docs/operations/launchd/com.radiofy.$job.plist.template" \
+    > ~/Library/LaunchAgents/com.radiofy.$job.plist
+  launchctl load ~/Library/LaunchAgents/com.radiofy.$job.plist
+done
 launchctl list | grep radiofy
 ```
 
-The crawl agent fires daily at 03:00; the sync agent fires Sundays at 04:00.
+launchd runs a missed job once the machine wakes. A laptop that is asleep on
+Sunday morning therefore still refreshes, just later — which is exactly why the
+dead-man switch needs a grace period generous enough to cover that.
 
 ### Linux (systemd-timer)
-
-Templates: `docs/operations/systemd/radiofy-{crawl,sync}@.{service,timer}`.
 
 ```bash
 mkdir -p ~/.config/systemd/user
 cp docs/operations/systemd/radiofy-*.service ~/.config/systemd/user/
 cp docs/operations/systemd/radiofy-*.timer   ~/.config/systemd/user/
 
-# Edit ExecStart paths in the .service files if Bun isn't at /usr/local/bin/bun.
+# Adjust the Environment=BUN= line in the .service files if Bun is elsewhere.
 
 systemctl --user daemon-reload
-systemctl --user enable --now radiofy-crawl@zet.timer
-systemctl --user enable --now radiofy-sync@zet.timer
+systemctl --user enable --now radiofy-weekly.timer
+systemctl --user enable --now radiofy-chart.timer
 systemctl --user list-timers --all
 ```
 
-### Alternative schedule
+`Persistent=true` makes systemd run a job that was missed while the machine was
+off, at the next boot.
 
-The default is daily crawl + weekly sync. To run both weekly together, change the crawl `StartCalendarInterval`/`OnCalendar` to Sundays and pass `--day=$(date -d "n days ago" +%F)` in a wrapper. Trade-off: a single missed Sunday loses the entire week's data.
+### If you want ingestion to repair itself mid-week
+
+The weekly job crawls the whole week in one go, so a day the source refuses
+during that run is lost until the window moves past it. Adding a daily `crawl`
+fixes that: each run re-crawls the last seven days, so a day lost to a source
+outage is picked up the next morning. The crontab example carries the line,
+commented out.
+
+---
+
+## Failure notification: the dead-man switch
+
+A job that fails can send a message. A job that never starts cannot — and that
+is the failure that actually happened here: no schedule existed, so nothing ran
+and nothing complained for two months.
+
+The fix is to invert the question. Instead of waiting to be told about a
+failure, expect a signal at a known interval and raise the alarm when it does
+not arrive. That covers the whole class at once: the scheduler was never
+installed, the machine is powered off, the disk is full, Bun is missing, the
+network is down, the process was killed.
+
+### The monitor must not live on the same machine
+
+If the monitor runs on the server it watches, both go quiet together. A
+self-hosted dashboard on the same box would have stayed just as silent during
+the outage it was meant to catch. Use an external service — several offer a free
+tier that covers two checks.
+
+### What the wrapper sends
+
+`docs/operations/bin/radiofy-cron.sh` takes the *name* of an environment
+variable, not a URL, so the secret never appears in the crontab or in `ps`:
+
+```
+radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
+```
+
+| Signal | When |
+|---|---|
+| `<url>/start` | before the command runs |
+| `<url>` | the command exited `0` |
+| `<url>/fail` | the command exited non-zero — including exit `2`, a run blocked by another already in flight |
+
+Ping failures are swallowed deliberately: a monitoring outage must never fail a
+run that worked, and must never hide a run that did not. The command's own exit
+code is always what the wrapper returns.
+
+### Setup
+
+1. Create one check per job — one for `weekly`, one for `chart`. Separate
+   checks, so a silent chart is not hidden behind a healthy weekly run.
+2. Set each check's period and grace to match the schedule:
+
+   | Check | Period | Grace |
+   |---|---|---|
+   | weekly | 7 days | 6 hours |
+   | chart | 1 day | 2 hours |
+
+   The grace has to cover a machine that boots late or a run that waits on a
+   slow source, without being so long that a real outage goes unnoticed for
+   days.
+3. Paste the ping URLs into the checkout's `.env`:
+
+   ```bash
+   RADIOFY_HEALTHCHECK_WEEKLY=https://<service>/<uuid>
+   RADIOFY_HEALTHCHECK_CHART=https://<service>/<uuid>
+   ```
+
+   Treat them like passwords: anyone holding a ping URL can silence that alarm.
+   `.env` is gitignored and should be mode `0600`.
+4. Point the alerts at something you actually read — email, a phone push, a
+   chat webhook.
+
+### Prove the alarm works before you trust it
+
+An untested alarm is worse than none, because it buys confidence it has not
+earned. Two checks, in this order:
+
+```bash
+# 1. A successful run reports success.
+docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
+# The check flips to "up" within seconds.
+
+# 2. A failure is reported as one.
+RADIOFY_HEALTHCHECK_WEEKLY=$RADIOFY_HEALTHCHECK_WEEKLY \
+  docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY definitely-not-a-command
+# Exits non-zero and the check flips to "down"; you should receive the alert.
+```
+
+Then the one that matters: leave the schedule disabled past the grace period
+and confirm the alarm fires **without anyone doing anything**. That is the
+behaviour the whole arrangement exists for, and it is the only one that cannot
+be verified by running something.
 
 ---
 

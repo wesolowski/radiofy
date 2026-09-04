@@ -3,38 +3,37 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.radiofy.sync.STATION</string>
+  <string>com.radiofy.chart</string>
 
   <key>WorkingDirectory</key>
   <string>/ABSOLUTE/PATH/TO/radiofy</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/bun</string>
-    <string>run</string>
-    <string>sync</string>
-    <string>--station=STATION</string>
+    <string>/ABSOLUTE/PATH/TO/radiofy/docs/operations/bin/radiofy-cron.sh</string>
+    <string>RADIOFY_HEALTHCHECK_CHART</string>
+    <string>chart</string>
   </array>
 
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Weekday</key>
-    <integer>0</integer>
     <key>Hour</key>
-    <integer>4</integer>
+    <integer>5</integer>
     <key>Minute</key>
     <integer>0</integer>
   </dict>
 
   <key>StandardOutPath</key>
-  <string>/ABSOLUTE/PATH/TO/radiofy/storage/logs/launchd-sync-STATION.out.log</string>
+  <string>/ABSOLUTE/PATH/TO/radiofy/storage/logs/launchd-chart.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/ABSOLUTE/PATH/TO/radiofy/storage/logs/launchd-sync-STATION.err.log</string>
+  <string>/ABSOLUTE/PATH/TO/radiofy/storage/logs/launchd-chart.err.log</string>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>BUN</key>
+    <string>/opt/homebrew/bin/bun</string>
   </dict>
 
   <key>RunAtLoad</key>
