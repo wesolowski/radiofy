@@ -7,18 +7,27 @@
 # Example:
 #   radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
 #
-# The health-check URL is looked up by variable name in the checkout's .env, so
-# it never appears in the crontab, in `ps` output, or in this file. Configure it
-# as e.g. RADIOFY_HEALTHCHECK_WEEKLY=https://hc-ping.com/<uuid>
-#
 # Signals sent, matching the healthchecks.io convention:
 #   <url>/start   before the command runs
 #   <url>         the command exited 0
 #   <url>/fail    the command exited non-zero
 #
-# With no URL configured the command still runs and nothing is sent. Ping
-# failures are swallowed: a monitoring outage must never fail a working run,
-# and must never hide a broken one.
+# The ping URL is looked up by variable name — first in the environment, then
+# in the checkout's .env — so it appears neither in the crontab nor in any
+# command line, including this script's own. With no URL configured the command
+# still runs and nothing is sent. Ping failures are swallowed: a monitoring
+# outage must never fail a working run, and must never hide a broken one.
+#
+# The .env file is read, never sourced. Sourcing it would execute it, and would
+# leak values into the worker's environment with their line endings intact — a
+# file saved with CRLF would hand Spotify a secret ending in a carriage return.
+# Bun loads .env from the working directory by itself, which is all the worker
+# needs.
+#
+# Environment overrides:
+#   RADIOFY_ROOT      checkout to run in     (default: three levels above this file)
+#   RADIOFY_CRON_LOG  combined log file      (default: $RADIOFY_ROOT/storage/logs/cron.log)
+#   BUN               path to the bun binary (default: bun from PATH)
 
 set -uo pipefail
 
@@ -30,37 +39,44 @@ fi
 HEALTHCHECK_VAR="$1"
 shift
 
-ROOT="${RADIOFY_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+if ! [[ "$HEALTHCHECK_VAR" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+  echo "radiofy-cron: '$HEALTHCHECK_VAR' is not a valid environment variable name" >&2
+  exit 64
+fi
+
+ROOT="${RADIOFY_ROOT:-$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 BUN="${BUN:-bun}"
 LOG="${RADIOFY_CRON_LOG:-$ROOT/storage/logs/cron.log}"
 
-if [ -f "$ROOT/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$ROOT/.env"
-  set +a
+URL="${!HEALTHCHECK_VAR:-}"
+if [ -z "$URL" ] && [ -r "$ROOT/.env" ]; then
+  URL=$(
+    sed -n "s/^[[:space:]]*${HEALTHCHECK_VAR}[[:space:]]*=[[:space:]]*//p" "$ROOT/.env" |
+      tail -n 1 | tr -d '\r' | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+  )
 fi
 
-URL="${!HEALTHCHECK_VAR:-}"
-
-ping() {
+notify() {
   [ -n "$URL" ] || return 0
-  curl -fsS -m 10 --retry 3 -o /dev/null "${URL}${1}" || true
+  printf 'url = "%s"\n' "${URL}${1}" | curl -fsS -m 10 --retry 2 -o /dev/null -K - || true
 }
 
+if ! cd "$ROOT"; then
+  echo "radiofy-cron: cannot enter $ROOT" >&2
+  exit 66
+fi
 mkdir -p "$(dirname "$LOG")"
 
-ping "/start"
+notify "/start"
 
-cd "$ROOT" || exit 66
 "$BUN" run "$@" >>"$LOG" 2>&1
 rc=$?
 
 if [ "$rc" -eq 0 ]; then
-  ping ""
+  notify ""
 else
   echo "radiofy-cron: '$*' exited $rc" >>"$LOG"
-  ping "/fail"
+  notify "/fail"
 fi
 
 exit "$rc"

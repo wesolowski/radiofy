@@ -423,7 +423,9 @@ tier that covers two checks.
 ### What the wrapper sends
 
 `docs/operations/bin/radiofy-cron.sh` takes the *name* of an environment
-variable, not a URL, so the secret never appears in the crontab or in `ps`:
+variable, not a URL. The name is resolved from the environment, or read out of
+the checkout's `.env`, and handed to `curl` through a config file on standard
+input — so the URL appears neither in the crontab nor in any command line:
 
 ```
 radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
@@ -438,6 +440,18 @@ radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
 Ping failures are swallowed deliberately: a monitoring outage must never fail a
 run that worked, and must never hide a run that did not. The command's own exit
 code is always what the wrapper returns.
+
+The `.env` file is read, never sourced. Sourcing would execute it, and would
+push its values into the worker's environment with their line endings intact —
+a file saved on Windows would hand Spotify a secret ending in a carriage
+return, so scheduled runs would fail authentication while manual ones worked.
+Bun loads `.env` from the working directory by itself, which is all the worker
+needs.
+
+Three environment variables override the defaults if you need them:
+`RADIOFY_ROOT` (which checkout to run in), `RADIOFY_CRON_LOG` (where the
+combined log goes) and `BUN` (the path to the binary). The shipped templates
+set `BUN`, because a scheduler's `PATH` rarely includes it.
 
 ### Setup
 
@@ -476,8 +490,7 @@ docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
 # The check flips to "up" within seconds.
 
 # 2. A failure is reported as one.
-RADIOFY_HEALTHCHECK_WEEKLY=$RADIOFY_HEALTHCHECK_WEEKLY \
-  docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY definitely-not-a-command
+docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY definitely-not-a-command
 # Exits non-zero and the check flips to "down"; you should receive the alert.
 ```
 

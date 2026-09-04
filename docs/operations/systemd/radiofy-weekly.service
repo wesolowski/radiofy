@@ -8,6 +8,3 @@ Type=oneshot
 WorkingDirectory=%h/radiofy
 Environment=BUN=/usr/local/bin/bun
 ExecStart=%h/radiofy/docs/operations/bin/radiofy-cron.sh RADIOFY_HEALTHCHECK_WEEKLY weekly
-
-[Install]
-WantedBy=default.target

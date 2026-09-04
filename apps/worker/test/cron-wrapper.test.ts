@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -9,18 +17,27 @@ let dir: string;
 let binDir: string;
 let pingLog: string;
 
-/** A stand-in for `curl` that records every URL it is asked to fetch. */
+/**
+ * A stand-in for `curl`. The wrapper passes the URL through a config file on
+ * stdin rather than as an argument, so the fake reads both and tags anything
+ * that arrives in argv — which is what keeps the URL out of `ps`.
+ */
 const installFakeCurl = (exitCode = 0): void => {
-  const script = `#!/usr/bin/env bash
-for arg in "$@"; do
-  case "$arg" in
-    http*) echo "$arg" >> "${pingLog}" ;;
-  esac
-done
-exit ${exitCode}
-`;
+  const lines = [
+    '#!/usr/bin/env bash',
+    'for arg in "$@"; do',
+    '  case "$arg" in',
+    `    http*) echo "argv:$arg" >> "${pingLog}" ;;`,
+    '  esac',
+    'done',
+    'if [ ! -t 0 ]; then',
+    `  sed -n 's/^url = "\\(.*\\)"$/\\1/p' >> "${pingLog}"`,
+    'fi',
+    `exit ${exitCode}`,
+    '',
+  ];
   const path = join(binDir, 'curl');
-  writeFileSync(path, script);
+  writeFileSync(path, lines.join('\n'));
   chmodSync(path, 0o755);
 };
 
@@ -97,22 +114,25 @@ describe('radiofy-cron.sh', () => {
     expect(pings[1]).toBe('https://hc.example/abc123/fail');
   });
 
-  test('a failing ping never changes the outcome of a successful run', async () => {
+  test('a failing success ping is never reported as a failed run', async () => {
     installFakeBun(0);
     installFakeCurl(7);
 
-    const { exitCode } = await runWrapper();
+    const { exitCode, pings } = await runWrapper();
 
     expect(exitCode).toBe(0);
+    expect(pings).toEqual(['https://hc.example/abc123/start', 'https://hc.example/abc123']);
+    expect(pings).not.toContain('https://hc.example/abc123/fail');
   });
 
   test('a failing ping never masks a failed run', async () => {
     installFakeBun(1);
     installFakeCurl(7);
 
-    const { exitCode } = await runWrapper();
+    const { exitCode, pings } = await runWrapper();
 
     expect(exitCode).toBe(1);
+    expect(pings).toEqual(['https://hc.example/abc123/start', 'https://hc.example/abc123/fail']);
   });
 
   test('runs the command and stays silent when no health check is configured', async () => {
@@ -133,6 +153,79 @@ describe('radiofy-cron.sh', () => {
 
     expect(exitCode).toBe(1);
     expect(pings).toEqual([]);
+  });
+
+  test('stays silent when the health-check variable is present but empty', async () => {
+    writeFileSync(join(dir, '.env'), 'RADIOFY_HEALTHCHECK_TEST=\nLOG_LEVEL=info\n');
+    installFakeBun(0);
+
+    const { exitCode, pings } = await runWrapper();
+
+    expect(exitCode).toBe(0);
+    expect(pings).toEqual([]);
+  });
+
+  test('forwards the command and its arguments to bun unchanged', async () => {
+    installFakeBun(0);
+
+    await runWrapper();
+
+    expect(readFileSync(join(dir, 'storage', 'logs', 'cron.log'), 'utf-8')).toContain(
+      'ran: run weekly',
+    );
+  });
+
+  test('records the failing command and its exit code in the log', async () => {
+    installFakeBun(3);
+
+    await runWrapper();
+
+    expect(readFileSync(join(dir, 'storage', 'logs', 'cron.log'), 'utf-8')).toContain(
+      "radiofy-cron: 'weekly' exited 3",
+    );
+  });
+
+  test('reads a health-check value written with Windows line endings', async () => {
+    writeFileSync(join(dir, '.env'), 'RADIOFY_HEALTHCHECK_TEST=https://hc.example/abc123\r\n');
+    installFakeBun(0);
+
+    const { pings } = await runWrapper();
+
+    expect(pings).toEqual(['https://hc.example/abc123/start', 'https://hc.example/abc123']);
+  });
+
+  test('never executes the contents of .env', async () => {
+    const marker = join(dir, 'SHOULD_NOT_EXIST');
+    writeFileSync(
+      join(dir, '.env'),
+      `RADIOFY_HEALTHCHECK_TEST=https://hc.example/abc123\nEVIL=$(touch ${marker})\n`,
+    );
+    installFakeBun(0);
+
+    const { exitCode, pings } = await runWrapper();
+
+    expect(exitCode).toBe(0);
+    expect(existsSync(marker)).toBe(false);
+    expect(pings[0]).toBe('https://hc.example/abc123/start');
+  });
+
+  test('rejects a health-check argument that is not a variable name', async () => {
+    installFakeBun(0);
+    const proc = Bun.spawn([WRAPPER, 'not-a-var-name', 'weekly'], {
+      env: { PATH: `${binDir}:${process.env['PATH'] ?? ''}`, RADIOFY_ROOT: dir, HOME: dir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(await proc.exited).toBe(64);
+  });
+
+  test('keeps the ping URL out of the process arguments', async () => {
+    installFakeBun(0);
+
+    const { pings } = await runWrapper();
+
+    expect(pings.some((p) => p.startsWith('argv:'))).toBe(false);
+    expect(pings).toContain('https://hc.example/abc123/start');
   });
 
   test('works when there is no .env file at all', async () => {

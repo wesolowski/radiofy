@@ -347,8 +347,10 @@ The wrapper every scheduled job goes through. It runs one Radiofy command,
 signals a health-check URL before the run and again afterwards — success or
 failure — and exits with the command's own exit code.
 
-The URL is looked up by *variable name* in the checkout's `.env`, so it appears
-neither in the crontab nor in `ps` output. With no URL configured the command
+The URL is looked up by *variable name* in the checkout's `.env` and passed to
+`curl` on standard input, so it appears neither in the crontab nor in any
+command line. The file is read rather than sourced, so nothing in it is
+executed and nothing leaks into the worker's environment. With no URL configured the command
 still runs and nothing is sent, so the schedule works before monitoring exists.
 Ping failures are swallowed on purpose: a monitoring outage must not fail a run
 that worked, nor hide one that did not.

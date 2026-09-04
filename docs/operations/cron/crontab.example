@@ -5,7 +5,8 @@
 #   crontab -l                   # verify
 #
 # Three things to adjust before pasting:
-#   1. PATHS:  set RADIOFY to your checkout, and BUN to `which bun`
+#   1. PATHS:  set RADIOFY_ROOT to your checkout, BUN to `which bun`, and RUN
+#      to the wrapper inside that checkout
 #   2. TIMEZONE: CRON_TZ pins the schedule to Europe/Warsaw regardless of the
 #      server's clock. Remove the line if the server is already on
 #      Europe/Warsaw, or change it for a different reference timezone.
@@ -18,9 +19,11 @@ CRON_TZ=Europe/Warsaw
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-RADIOFY=/home/youruser/radiofy
+RADIOFY_ROOT=/home/youruser/radiofy
 BUN=/usr/local/bin/bun
 RUN=/home/youruser/radiofy/docs/operations/bin/radiofy-cron.sh
+
+# RADIOFY_ROOT and BUN are passed through to the wrapper by cron.
 
 # ─── Weekly refresh — Sunday 04:00 Europe/Warsaw ────────────────────────────
 # Crawls the past week for every enabled station, then replaces every station
