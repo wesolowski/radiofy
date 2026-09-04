@@ -15,6 +15,34 @@ import { yesterdayInTz } from './yesterday.ts';
 const OVERLAP_CUTOFF_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_DAYS = 7;
+const MAX_RETRIES = 2;
+const BACKOFF_BASE_MS = 500;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url: string, fetchFn: typeof globalThis.fetch): Promise<Response> => {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const wait = 2 ** attempt * BACKOFF_BASE_MS;
+    try {
+      const res = await fetchFn(url);
+      if (res.status >= 500 && res.status < 600 && attempt < MAX_RETRIES) {
+        logger.warn('crawl: server error, backing off', { url, status: res.status, wait });
+        await sleep(wait);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      if (attempt === MAX_RETRIES) throw err;
+      logger.warn('crawl: fetch error, backing off', {
+        url,
+        wait,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await sleep(wait);
+    }
+  }
+  throw new Error(`crawl: retries exhausted for ${url}`);
+};
 
 interface SourceModule {
   dayUrls: (slug: string, day: string) => string[];
@@ -39,7 +67,7 @@ export interface CrawlOptions {
 }
 
 export type CrawlOutcome =
-  | { kind: 'ok'; daysCrawled: number; songsSeen: number; inserted: number }
+  | { kind: 'ok'; daysCrawled: number; daysFailed: number; songsSeen: number; inserted: number }
   | { kind: 'disabled' }
   | { kind: 'not_found' }
   | { kind: 'blocked' };
@@ -87,7 +115,7 @@ const crawlOneDay = async (
     logger.info('crawl: fetching', { station: station.id, day, urls: urls.length });
     const songs: RawSong[] = [];
     for (const url of urls) {
-      const res = await fetchFn(url);
+      const res = await fetchWithRetry(url, fetchFn);
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
       const html = await res.text();
       songs.push(...source.parse({ html, station: station.id, day }));
@@ -180,23 +208,34 @@ export const runCrawl = async (options: CrawlOptions): Promise<CrawlOutcome> => 
   const days = resolveDays(options, now());
   let totalSongs = 0;
   let totalInserted = 0;
+  let daysFailed = 0;
 
   for (const day of days) {
-    const result = await crawlOneDay(
-      db,
-      source,
-      { id: station.id, source: station.source, sourceSlug: station.sourceSlug },
-      day,
-      fetchFn,
-      now,
-    );
-    totalSongs += result.songsSeen;
-    totalInserted += result.inserted;
+    try {
+      const result = await crawlOneDay(
+        db,
+        source,
+        { id: station.id, source: station.source, sourceSlug: station.sourceSlug },
+        day,
+        fetchFn,
+        now,
+      );
+      totalSongs += result.songsSeen;
+      totalInserted += result.inserted;
+    } catch (err) {
+      daysFailed++;
+      logger.error('crawl: day failed', {
+        station: station.id,
+        day,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   return {
     kind: 'ok',
     daysCrawled: days.length,
+    daysFailed,
     songsSeen: totalSongs,
     inserted: totalInserted,
   };

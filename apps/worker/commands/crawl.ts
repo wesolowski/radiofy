@@ -28,6 +28,7 @@ const main = async (): Promise<void> => {
       const outcome = await runCrawl(crawlArgs);
       if (outcome.kind === 'not_found') failed = true;
       if (outcome.kind === 'blocked') blocked = true;
+      if (outcome.kind === 'ok' && outcome.daysFailed > 0) failed = true;
     } catch (err) {
       logger.error('crawl: failed', {
         station,
