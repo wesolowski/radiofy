@@ -3,6 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Db, applyMigrations, openInMemoryDb, syncRunsRepo } from '@radiofy/database';
+import { asciiFold } from '@radiofy/normalizer';
+import { parseChart } from '@radiofy/sources';
 import { runChart } from '../lib/chart.ts';
 
 const FIXTURE_PATH = 'packages/sources/test/eska-goraca20/fixtures/goraca20.html';
@@ -27,6 +29,13 @@ let postedUris: string[][];
 let playlistCalls: string[];
 
 const fakeNow = (): Date => new Date('2026-09-04T12:00:00.000Z');
+
+/**
+ * Mirrors the id the echoed search stub returns. The lookup folds diacritics
+ * before querying, so the stub echoes the folded title back.
+ */
+const idFor = (title: string): string =>
+  `spotify:track:${Buffer.from(asciiFold(title)).toString('hex').padEnd(22, '0').slice(0, 22)}`;
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -55,6 +64,7 @@ interface FetchStubOptions {
   search?: 'match' | 'none';
   playlistExists?: boolean;
   unresolvable?: string[];
+  searchFails?: string[];
 }
 
 const installFetch = (options: FetchStubOptions = {}): void => {
@@ -63,6 +73,7 @@ const installFetch = (options: FetchStubOptions = {}): void => {
     search = 'match',
     playlistExists = true,
     unresolvable = [],
+    searchFails = [],
   } = options;
   postedUris = [];
   playlistCalls = [];
@@ -78,6 +89,7 @@ const installFetch = (options: FetchStubOptions = {}): void => {
     if (resolved.includes('/v1/search')) {
       if (search === 'none') return jsonResponse({ tracks: { items: [] } });
       const q = new URL(resolved).searchParams.get('q') ?? '';
+      if (searchFails.some((t) => q.includes(t))) return jsonResponse({}, 500);
       if (unresolvable.some((t) => q.includes(t))) return jsonResponse({ tracks: { items: [] } });
       return echoedSearchHit(resolved);
     }
@@ -109,6 +121,18 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const runWith = (overrides: Partial<typeof CHART>) => {
+  writeFileSync(chartsPath, JSON.stringify([{ ...CHART, ...overrides }]));
+  return runChart({
+    chart: CHART.id,
+    db,
+    chartsPath,
+    overridesPath,
+    accessToken: 'token',
+    now: fakeNow,
+  });
+};
+
 const run = () =>
   runChart({
     chart: CHART.id,
@@ -136,10 +160,9 @@ describe('runChart', () => {
     const written = postedUris[0] ?? [];
     expect(written).toHaveLength(45);
 
-    const idFor = (title: string): string =>
-      `spotify:track:${Buffer.from(title).toString('hex').padEnd(22, '0').slice(0, 22)}`;
+    const expected = parseChart({ html }).map((e) => idFor(e.title));
+    expect(written).toEqual(expected);
     expect(written[0]).toBe(idFor("My Body Isn't Ready"));
-    expect(written[1]).toBe(idFor('Ty Masz'));
     expect(written[19]).toBe(idFor('Fate'));
     expect(written[20]).toBe(idFor('Emerald Eyes'));
   });
@@ -155,8 +178,6 @@ describe('runChart', () => {
       expect(outcome.tracksWritten).toBe(44);
     }
     const written = postedUris[0] ?? [];
-    const idFor = (title: string): string =>
-      `spotify:track:${Buffer.from(title).toString('hex').padEnd(22, '0').slice(0, 22)}`;
     expect(written[0]).toBe(idFor('Ty Masz'));
     expect(written[18]).toBe(idFor('Fate'));
   });
@@ -218,6 +239,64 @@ describe('runChart', () => {
 
     expect(outcome.kind).toBe('disabled');
     expect(playlistCalls).toEqual([]);
+  });
+
+  test('leaves the playlist untouched when a Spotify lookup fails outright', async () => {
+    installFetch({ searchFails: ["My Body Isn't Ready"] });
+
+    const outcome = await run();
+
+    expect(outcome.kind).toBe('degraded');
+    if (outcome.kind === 'degraded') {
+      expect(outcome.apiErrors).toBe(1);
+      expect(outcome.entriesParsed).toBe(45);
+    }
+    expect(playlistCalls).toEqual([]);
+    expect(syncRunsRepo.lastSuccess(db, CHART.id)).toBeUndefined();
+  });
+
+  test('accepts a parse exactly at minEntries and rejects one entry short', async () => {
+    installFetch();
+    const atFloor = await runWith({ minEntries: 45 });
+    expect(atFloor.kind).toBe('ok');
+
+    postedUris = [];
+    playlistCalls = [];
+    syncRunsRepo.close(db, 1, '2026-09-04T12:00:00.000Z', 45, null);
+    const belowFloor = await runWith({ minEntries: 46 });
+    expect(belowFloor.kind).toBe('implausible');
+    if (belowFloor.kind === 'implausible') {
+      expect(belowFloor.entriesParsed).toBe(45);
+      expect(belowFloor.minEntries).toBe(46);
+    }
+    expect(playlistCalls).toEqual([]);
+  });
+
+  test('writes a track colliding across sections only once, keeping its first position', async () => {
+    const twin = `
+      <div class="single-hit">
+        <div class="single-hit__positions"><div class="single-hit__position">1</div></div>
+        <div class="single-hit__info">
+          <a href="/hit/a-so-AAAA-AAAA-AAAA.html" class="single-hit__title">Twin Song</a>
+          <ul><li><a href="/hit/a-so-AAAA-AAAA-AAAA.html" class="single-hit__author">Artist One</a></li></ul>
+        </div>
+      </div>
+      <div class="single-hit">
+        <div class="single-hit__info">
+          <a href="/hit/b-so-BBBB-BBBB-BBBB.html" class="single-hit__title">Twin Song</a>
+          <ul><li><a href="/hit/b-so-BBBB-BBBB-BBBB.html" class="single-hit__author">Artist One</a></li></ul>
+        </div>
+      </div>`;
+    installFetch({ page: (): Response => new Response(twin, { status: 200 }) });
+
+    const outcome = await runWith({ minEntries: 2 });
+
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.entriesParsed).toBe(2);
+      expect(outcome.tracksWritten).toBe(1);
+    }
+    expect(postedUris[0]).toEqual([idFor('Twin Song')]);
   });
 
   test('reports an unknown chart id', async () => {

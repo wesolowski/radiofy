@@ -2,7 +2,7 @@ import { type Db, applyMigrations, openDb, syncRunsRepo } from '@radiofy/databas
 import { type OverrideTable, loadOverrides, resolveSong } from '@radiofy/matcher';
 import { normalize } from '@radiofy/normalizer';
 import { type Chart, type RawSong, loadCharts, logger } from '@radiofy/shared';
-import { type ChartEntry, ESKA_GORACA20_ID, parseChart } from '@radiofy/sources';
+import { type ChartEntry, ESKA_GORACA20_ID, eskaGoraca20Source } from '@radiofy/sources';
 import {
   PlaylistNotFoundError,
   getAccessToken,
@@ -25,6 +25,7 @@ export interface ChartOptions {
 export type ChartOutcome =
   | { kind: 'ok'; entriesParsed: number; tracksWritten: number; snapshotId: string }
   | { kind: 'implausible'; entriesParsed: number; minEntries: number }
+  | { kind: 'degraded'; entriesParsed: number; apiErrors: number }
   | { kind: 'no_songs'; entriesParsed: number }
   | { kind: 'playlist_not_found'; name: string }
   | { kind: 'disabled' }
@@ -32,7 +33,7 @@ export type ChartOutcome =
   | { kind: 'blocked' };
 
 const PARSERS: Record<string, (input: { html: string }) => ChartEntry[]> = {
-  [ESKA_GORACA20_ID]: parseChart,
+  [ESKA_GORACA20_ID]: eskaGoraca20Source.parseChart,
 };
 
 const asRawSong = (entry: ChartEntry, seenAt: string): RawSong => ({
@@ -54,7 +55,8 @@ const loadChart = (id: string, chartsPath?: string): Chart | 'not_found' | 'disa
  * Replaces one playlist with a chart page's entries in the page's own order:
  * ranked chart first, then the unranked proposals. The playlist is only ever
  * written by a run that parsed a plausible number of entries and resolved at
- * least one of them — a page redesign must not be able to empty it.
+ * least one of them, and whose Spotify lookups all completed — neither a page
+ * redesign nor a degraded search API may shrink it.
  */
 export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => {
   logger.bindRunFile(`storage/logs/chart-${options.chart}.log`);
@@ -113,6 +115,7 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
     const seenAt = now().toISOString();
     const uris: string[] = [];
     const seen = new Set<string>();
+    let apiErrors = 0;
     for (const entry of entries) {
       const rawSong = asRawSong(entry, seenAt);
       const outcome = await resolveSong({
@@ -124,6 +127,7 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
         rawSong,
         normalized: normalize(rawSong),
       });
+      if (outcome.kind === 'api_error') apiErrors++;
       if (outcome.kind !== 'override' && outcome.kind !== 'cache' && outcome.kind !== 'auto') {
         continue;
       }
@@ -132,9 +136,17 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
       uris.push(outcome.spotifyTrackId);
     }
 
+    if (apiErrors > 0) {
+      const msg = `${apiErrors} of ${entries.length} lookups failed against Spotify — leaving the playlist untouched`;
+      logger.error('chart: degraded lookups', { chart: chart.id, apiErrors });
+      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg);
+      return { kind: 'degraded', entriesParsed: entries.length, apiErrors };
+    }
+
     if (uris.length === 0) {
+      const msg = 'no entry resolved to a Spotify track — leaving the playlist untouched';
       logger.warn('chart: nothing resolved — skipping playlist replace', { chart: chart.id });
-      syncRunsRepo.close(db, run.id, now().toISOString(), 0, null);
+      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg);
       return { kind: 'no_songs', entriesParsed: entries.length };
     }
 

@@ -15,6 +15,7 @@ const main = async (): Promise<void> => {
       if (outcome.kind === 'blocked') blocked = true;
       if (outcome.kind === 'playlist_not_found') failed = true;
       if (outcome.kind === 'implausible') failed = true;
+      if (outcome.kind === 'degraded') failed = true;
       if (outcome.kind === 'no_songs') failed = true;
     } catch (err) {
       logger.error('chart: failed', {

@@ -21,11 +21,11 @@ Verified against one snapshot of `https://www.eska.pl/goraca20/`:
 
 | | |
 |---|---|
-| Chart | exactly 20 `div.single-hit` blocks, each with `.single-hit__position` 1–20 and an up/down marker |
+| Chart | exactly 20 entries, each with `.single-hit__position` 1–20 and an up/down marker |
 | Proposals | 25 `div.single-hit` blocks under an `<h2>PROPOZYCJE</h2>` heading, **without** a position element |
-| Markup | both sections use the identical `div.single-hit` structure |
+| Markup | both sections use the identical `div.single-hit` structure. The captured page carries **67** such blocks in total: the 45 entries plus 22 promotional tiles with no entry href, interleaved between them. A document-wide block count is therefore not the entry count — the parser skips anything without a usable track id |
 | Artists | a `<li>` list of `a.single-hit__author`; 5 of the 20 chart entries have more than one |
-| Track id | in the entry href, shape `so-XXXX-XXXX-XXXX`; all 45 blocks carry one, all 45 distinct |
+| Track id | in the entry href, shape `so-XXXX-XXXX-XXXX`; all 45 entries carry one, all 45 distinct |
 
 Two defects in the external tool follow from this and are fixed by
 construction here: it selects `div.single-hit` document-wide, so it puts all 45
@@ -157,7 +157,11 @@ The playlist is left **untouched** when:
 - the fetch fails (non-2xx or thrown), or
 - the parser yields fewer than `minEntries` entries, or
 - no entry resolves to a Spotify track (`no_songs`, mirroring
-  `apps/worker/lib/sync.ts:136`).
+  `apps/worker/lib/sync.ts:136`), or
+- any Spotify lookup failed outright (`degraded`). Without this, a search
+  endpoint returning errors while the playlist endpoints stay healthy would
+  replace the playlist with however few entries happened to resolve — the very
+  truncation the entry floor exists to prevent, one layer further down.
 
 Only a plausible, resolved run writes. Each of the three closes the run row
 with its error and exits non-zero.

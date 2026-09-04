@@ -22,13 +22,13 @@ const StationSchema: z.ZodType<Station> = z.object({
 
 const StationsSchema = z.array(StationSchema);
 
-const ChartSchema: z.ZodType<Chart> = z.object({
+const ChartSchema: z.ZodType<Chart, z.ZodTypeDef, unknown> = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   source: z.string().min(1),
   url: z.string().url(),
   playlistName: z.string().min(1),
-  minEntries: z.number().int().min(1),
+  minEntries: z.number().int().min(1).default(20),
   enabled: z.boolean(),
 });
 
