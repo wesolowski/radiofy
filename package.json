@@ -7,6 +7,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "sync": "bun apps/worker/commands/sync.ts",
+    "weekly": "bun apps/worker/commands/weekly.ts",
     "crawl": "bun apps/worker/commands/crawl.ts",
     "spotify:auth": "bun apps/worker/commands/spotify-auth.ts",
     "overrides:validate": "bun apps/worker/commands/overrides-validate.ts",
