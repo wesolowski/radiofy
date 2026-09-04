@@ -263,7 +263,7 @@ cp .env.example .env
 bun run spotify:auth
 
 # 6. First sync
-bun run sync --station=radio-zet
+bun run sync --station=zet
 ```
 
 Once that works, install a scheduler — templates are in
@@ -340,7 +340,7 @@ the `sed` one-liner that produces a real plist from a template.
 
 The Linux equivalent. Systemd's `@.service` / `@.timer` naming means you
 instantiate them per station — `systemctl --user enable --now
-radiofy-crawl@radio-zet.timer` creates the daily crawl job for ZET, and
+radiofy-crawl@zet.timer` creates the daily crawl job for ZET, and
 the same with `--sync@` for the weekly sync. The `OnCalendar` clauses are
 already correct; the only file you may need to edit is the `ExecStart`
 path if Bun isn't at `/usr/local/bin/bun` on your system.

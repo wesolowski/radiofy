@@ -32,9 +32,9 @@ describe('dayUrls — full-day chunking', () => {
 
 describe('ODSLUCHANE_EU_STATIONS map', () => {
   test('covers the four MVP stations', () => {
-    expect(ODSLUCHANE_EU_STATIONS['radio-zet']).toBe('1');
-    expect(ODSLUCHANE_EU_STATIONS['rmf-fm']).toBe('2');
-    expect(ODSLUCHANE_EU_STATIONS['radio-eska']).toBe('3');
-    expect(ODSLUCHANE_EU_STATIONS['rmf-maxx']).toBe('4');
+    expect(ODSLUCHANE_EU_STATIONS['zet']).toBe('1');
+    expect(ODSLUCHANE_EU_STATIONS['rmf']).toBe('2');
+    expect(ODSLUCHANE_EU_STATIONS['eska']).toBe('3');
+    expect(ODSLUCHANE_EU_STATIONS['rmfmaxx']).toBe('4');
   });
 });

@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "id": "zet",
+    "name": "ZET",
+    "source": "odsluchane-eu",
+    "sourceSlug": "1",
+    "playlistName": "Radio Zet Weekly Playlist",
+    "enabled": true
+  },
+  {
+    "id": "eska",
+    "name": "Eska",
+    "source": "odsluchane-eu",
+    "sourceSlug": "3",
+    "playlistName": "Radio Eska Weekly Playlist",
+    "enabled": true
+  },
+  {
+    "id": "rmf",
+    "name": "RMF",
+    "source": "odsluchane-eu",
+    "sourceSlug": "2",
+    "playlistName": "Radio RMF Weekly Playlist",
+    "enabled": true
+  },
+  {
+    "id": "rmfmaxx",
+    "name": "RMF Maxx",
+    "source": "odsluchane-eu",
+    "sourceSlug": "4",
+    "playlistName": "Radio RMFMaxx Weekly Playlist",
+    "enabled": true
+  }
+]
