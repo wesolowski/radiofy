@@ -136,8 +136,8 @@ Responsibilities:
 Subcommands:
 
 ```bash
-bun run sync --station=radio-zet           # full pipeline
-bun run crawl --station=radio-zet [--day=YYYY-MM-DD]   # crawl only, no Spotify writes
+bun run sync --station=zet           # full pipeline
+bun run crawl --station=zet [--day=YYYY-MM-DD]   # crawl only, no Spotify writes
 bun run spotify:auth                       # one-time refresh-token bootstrap
 bun run overrides:validate                 # parse storage/overrides.json, report conflicts
 bun run export-unmatched [--station=...] [--since=YYYY-MM-DD] [--all] > unmatched.csv
@@ -280,7 +280,7 @@ Committed. Defines stations and the Spotify playlist they sync into.
 ```json
 [
   {
-    "id": "radio-zet",
+    "id": "zet",
     "name": "ZET",
     "source": "malopolskie-media",
     "sourceSlug": "radio-zet",
@@ -288,7 +288,7 @@ Committed. Defines stations and the Spotify playlist they sync into.
     "enabled": true
   },
   {
-    "id": "rmf-fm",
+    "id": "rmf",
     "name": "RMF FM",
     "source": "malopolskie-media",
     "sourceSlug": "rmf-fm",
@@ -336,8 +336,8 @@ LOG_LEVEL=info
 storage/
   db/                 # SQLite database files (gitignored)
   logs/               # one log file per command-station combo, truncated on each run
-    crawl-radio-zet.log
-    sync-radio-zet.log
+    crawl-zet.log
+    sync-zet.log
     ...
   auth/
     spotify.json      # Spotify refresh token, 0600, gitignored
@@ -783,7 +783,7 @@ and `last_seen_at`.
 A CLI command produces a flat CSV for spreadsheet inspection:
 
 ```bash
-bun run export-unmatched [--station=radio-zet] [--since=2026-05-01] > unmatched.csv
+bun run export-unmatched [--station=zet] [--since=2026-05-01] > unmatched.csv
 ```
 
 Columns: `normalized_key, artist, title, source, source_track_id, station,
@@ -915,7 +915,7 @@ on each invocation and exits. Scheduling is the operating system's job.
 ## Local development
 
 ```bash
-bun run sync --station=radio-zet
+bun run sync --station=zet
 ```
 
 ## Production trigger
@@ -961,7 +961,7 @@ CREATE TABLE plays (
   id INTEGER PRIMARY KEY,
   source TEXT NOT NULL,                    -- 'malopolskie-media'
   source_track_id TEXT NOT NULL,           -- stable per source
-  station TEXT NOT NULL,                   -- 'radio-zet'
+  station TEXT NOT NULL,                   -- 'zet'
   song_id INTEGER NOT NULL REFERENCES songs(id),
   played_at TEXT NOT NULL,                 -- UTC ISO-8601
   crawled_at TEXT NOT NULL,

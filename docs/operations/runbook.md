@@ -45,7 +45,7 @@ For each station the worker will sync, create an empty playlist in Spotify (Web 
 ```json
 [
   {
-    "id": "radio-zet",
+    "id": "zet",
     "name": "ZET",
     "source": "malopolskie-media",
     "sourceSlug": "radio-zet",
@@ -68,8 +68,8 @@ This opens the Spotify consent page in your browser and listens on `127.0.0.1:88
 ### 7. First crawl + first sync
 
 ```bash
-bun run crawl --station=radio-zet --days=7    # one-shot week backfill
-bun run sync  --station=radio-zet
+bun run crawl --station=zet --days=7    # one-shot week backfill
+bun run sync  --station=zet
 ```
 
 (Use `--day=YYYY-MM-DD` instead of `--days=7` to crawl one specific day. The
@@ -116,12 +116,53 @@ bun run export-playlist --name="Radiofy Manual Matches" > matches.csv
 
 # 6. Validate and re-sync
 bun run overrides:validate
-bun run sync --station=radio-zet
+bun run sync --station=zet
 ```
 
 After step 6, the resolved entries in `unmatched_songs` get their `resolved_at` set and drop out of the default `export-unmatched` output.
 
 ---
+
+## One-off: play rows under retired station ids
+
+Installations that ran before the station ids were unified may hold play rows
+under the older spellings (`radio-zet`, `radio-eska`, `rmf-fm`, `rmf-maxx`).
+They are inert — every command reads the ids from `config/stations.json`, so
+those rows are never selected again — but they inflate the database and split
+`top-played` history.
+
+Check what is there, and whether it duplicates rows you already have under the
+current ids:
+
+```bash
+sqlite3 storage/db/radiofy.db "
+  select station, count(*), min(substr(played_at,1,10)), max(substr(played_at,1,10))
+  from plays group by station order by station;"
+```
+
+If a retired id's rows are all duplicated under its current id, they can be
+deleted. Verify first, delete second — this statement only reports:
+
+```bash
+sqlite3 storage/db/radiofy.db "
+  select count(*) from plays a
+  where a.station = 'radio-zet'
+    and exists (select 1 from plays b
+                where b.station = 'zet' and b.source = a.source
+                  and b.source_track_id = a.source_track_id
+                  and b.played_at = a.played_at);"
+```
+
+When that count equals the retired id's total row count, nothing unique is
+lost by removing them:
+
+```bash
+sqlite3 storage/db/radiofy.db "delete from plays where station = 'radio-zet';"
+```
+
+This is deliberately not automated: station ids are operator configuration, and
+a migration shipped with the code would rename or delete ids that are perfectly
+valid in someone else's installation.
 
 ## Monthly housekeeping
 
@@ -299,15 +340,15 @@ Templates: `docs/operations/launchd/com.radiofy.{crawl,sync}.STATION.plist.templ
 ```bash
 # Replace STATION and the absolute path, then:
 mkdir -p ~/Library/LaunchAgents
-sed -e "s|STATION|radio-zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
+sed -e "s|STATION|zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
   docs/operations/launchd/com.radiofy.crawl.STATION.plist.template \
-  > ~/Library/LaunchAgents/com.radiofy.crawl.radio-zet.plist
-launchctl load ~/Library/LaunchAgents/com.radiofy.crawl.radio-zet.plist
+  > ~/Library/LaunchAgents/com.radiofy.crawl.zet.plist
+launchctl load ~/Library/LaunchAgents/com.radiofy.crawl.zet.plist
 
-sed -e "s|STATION|radio-zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
+sed -e "s|STATION|zet|g" -e "s|/ABSOLUTE/PATH/TO/radiofy|$PWD|g" \
   docs/operations/launchd/com.radiofy.sync.STATION.plist.template \
-  > ~/Library/LaunchAgents/com.radiofy.sync.radio-zet.plist
-launchctl load ~/Library/LaunchAgents/com.radiofy.sync.radio-zet.plist
+  > ~/Library/LaunchAgents/com.radiofy.sync.zet.plist
+launchctl load ~/Library/LaunchAgents/com.radiofy.sync.zet.plist
 
 launchctl list | grep radiofy
 ```
@@ -326,8 +367,8 @@ cp docs/operations/systemd/radiofy-*.timer   ~/.config/systemd/user/
 # Edit ExecStart paths in the .service files if Bun isn't at /usr/local/bin/bun.
 
 systemctl --user daemon-reload
-systemctl --user enable --now radiofy-crawl@radio-zet.timer
-systemctl --user enable --now radiofy-sync@radio-zet.timer
+systemctl --user enable --now radiofy-crawl@zet.timer
+systemctl --user enable --now radiofy-sync@zet.timer
 systemctl --user list-timers --all
 ```
 

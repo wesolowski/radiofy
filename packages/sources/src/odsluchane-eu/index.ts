@@ -11,10 +11,10 @@ export const ODSLUCHANE_EU_ID = 'odsluchane-eu' as const;
  * full table and how new stations are added.
  */
 export const ODSLUCHANE_EU_STATIONS = {
-  'radio-zet': '1',
-  'rmf-fm': '2',
-  'radio-eska': '3',
-  'rmf-maxx': '4',
+  zet: '1',
+  rmf: '2',
+  eska: '3',
+  rmfmaxx: '4',
 } as const;
 
 /**
