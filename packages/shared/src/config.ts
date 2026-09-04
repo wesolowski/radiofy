@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import type { AppConfig, Level, Station } from './types.ts';
+import type { AppConfig, Chart, Level, Station } from './types.ts';
 
 const LevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
 
@@ -21,6 +21,18 @@ const StationSchema: z.ZodType<Station> = z.object({
 });
 
 const StationsSchema = z.array(StationSchema);
+
+const ChartSchema: z.ZodType<Chart> = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  source: z.string().min(1),
+  url: z.string().url(),
+  playlistName: z.string().min(1),
+  minEntries: z.number().int().min(1),
+  enabled: z.boolean(),
+});
+
+const ChartsSchema = z.array(ChartSchema);
 
 const formatIssues = (error: z.ZodError, root: string): string =>
   error.issues
@@ -58,6 +70,21 @@ export const loadStations = (path = 'config/stations.json'): Station[] => {
     throw new Error(
       `stations: invalid config at ${path}\n  ${formatIssues(result.error, 'stations')}`,
     );
+  }
+  return result.data;
+};
+
+export const loadCharts = (path = 'config/charts.json'): Chart[] => {
+  const raw = readFileSync(path, 'utf-8');
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (cause) {
+    throw new Error(`charts: ${path} is not valid JSON`, { cause });
+  }
+  const result = ChartsSchema.safeParse(json);
+  if (!result.success) {
+    throw new Error(`charts: invalid config at ${path}\n  ${formatIssues(result.error, 'charts')}`);
   }
   return result.data;
 };

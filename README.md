@@ -120,6 +120,26 @@ non-zero if any station failed.
 Use it when: the weekly cron job fires, or you've just added a manual
 override and want to apply it immediately.
 
+#### `bun run chart`
+
+Replaces one playlist with a chart page's current contents. Unlike `crawl` /
+`sync`, a chart is a ranking rather than a play log: the page dictates the
+order, so the tracks are written in the page's own order — the ranked chart
+first, then the unranked proposals below it — and nothing is re-sorted by play
+count. Charts are configured in `config/charts.json`, deliberately **not** in
+`config/stations.json`, so no all-stations command can reach a chart playlist.
+
+The playlist is left untouched unless the run is plausible: if the page request
+fails, if the parser finds fewer than the chart's configured `minEntries`, or
+if not a single entry resolves on Spotify, the run fails and the previous
+playlist contents survive. This matters because the update is a clear-and-fill:
+without the floor, a redesign of the source page could replace the playlist
+with a handful of tracks. Exits `0` clean, `1` on failure, `2` when a run is
+already in flight.
+
+Use it when: the chart changed and you want the playlist to follow. Independent
+of the station schedule — a chart moves on its own rhythm.
+
 ### Setup (one-time per machine)
 
 #### `bun run spotify:auth`

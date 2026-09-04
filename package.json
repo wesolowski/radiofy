@@ -8,6 +8,7 @@
   "scripts": {
     "sync": "bun apps/worker/commands/sync.ts",
     "crawl": "bun apps/worker/commands/crawl.ts",
+    "chart": "bun apps/worker/commands/chart.ts",
     "spotify:auth": "bun apps/worker/commands/spotify-auth.ts",
     "overrides:validate": "bun apps/worker/commands/overrides-validate.ts",
     "export-unmatched": "bun apps/worker/commands/export-unmatched.ts",
