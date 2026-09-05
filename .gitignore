@@ -8,6 +8,9 @@
 # Bun / Node
 node_modules/
 
+# Isolated agent worktrees — the rest of .claude/ is committed on purpose
+.claude/worktrees/
+
 # Secrets — committed: .env.example (template, no values)
 .env
 .env.*
