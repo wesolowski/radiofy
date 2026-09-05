@@ -62,6 +62,18 @@ describe('runStatus', () => {
     expect(out.report.stations[0]?.health).toBe('ok');
   });
 
+  test('a recent crawl that found no songs is not reported as healthy', () => {
+    crawlRunsRepo.open(db, {
+      station: 'radio-zet',
+      day: '2026-05-25',
+      startedAt: '2026-05-26T03:00:00.000Z',
+    });
+    crawlRunsRepo.close(db, 1, '2026-05-26T03:00:05.000Z', 0, null);
+    const out = runStatus({ db, stationsPath, now: fakeNow, stdout });
+    expect(out.report.stations[0]?.health).toBe('empty');
+    expect(out.exitCode).toBe(1);
+  });
+
   test('stale crawl (>36h old) sets exit 1', () => {
     crawlRunsRepo.open(db, {
       station: 'radio-zet',
