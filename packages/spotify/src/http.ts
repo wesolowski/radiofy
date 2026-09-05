@@ -24,21 +24,56 @@ export interface SpotifyFetchOptions extends Omit<RequestInit, 'headers' | 'sign
   timeoutMs?: number;
 }
 
-export const spotifyFetch = async (
+export type SpotifyJsonResult<T> =
+  | { ok: true; status: number; body: T }
+  | { ok: false; status: number };
+
+const withRetries = async <T>(
   url: string,
   accessToken: string,
-  options: SpotifyFetchOptions = {},
-): Promise<Response> => {
+  options: SpotifyFetchOptions,
+  read: (res: Response) => Promise<T>,
+): Promise<T> => {
   const { timeoutMs = REQUEST_TIMEOUT_MS, ...init } = options;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    let res: Response;
+    let value: T;
     try {
-      res = await fetch(url, {
+      const res = await fetch(url, {
         ...init,
         headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
         signal: AbortSignal.timeout(timeoutMs),
       });
+
+      if (res.status === 401) {
+        throw new SpotifyAuthExpiredError(
+          'Spotify rejected the access token — refresh and retry, or re-run `bun run spotify:auth`.',
+        );
+      }
+      if (res.status === 429) {
+        if (attempt === MAX_RETRIES) {
+          throw new SpotifyTransientError(`Spotify 429 after ${MAX_RETRIES} retries`, 429);
+        }
+        const wait = parseRetryAfter(res.headers.get('Retry-After')) * 1000;
+        logger.warn('spotify: rate limited, sleeping', { url, wait });
+        await sleep(wait);
+        continue;
+      }
+      if (res.status >= 500 && res.status < 600) {
+        if (attempt === MAX_RETRIES) {
+          throw new SpotifyTransientError(
+            `Spotify ${res.status} after ${MAX_RETRIES} retries`,
+            res.status,
+          );
+        }
+        const wait = 2 ** attempt * BACKOFF_BASE_MS;
+        logger.warn('spotify: server error, backing off', { url, status: res.status, wait });
+        await sleep(wait);
+        continue;
+      }
+
+      value = await read(res);
     } catch (err) {
+      if (err instanceof SpotifyAuthExpiredError || err instanceof SpotifyTransientError) throw err;
       if (!(err instanceof Error && err.name === 'TimeoutError')) throw err;
       if (attempt === MAX_RETRIES) {
         throw new SpotifyTransientError(`Spotify did not answer within ${timeoutMs}ms: ${url}`);
@@ -49,37 +84,31 @@ export const spotifyFetch = async (
       continue;
     }
 
-    if (res.status === 401) {
-      throw new SpotifyAuthExpiredError(
-        'Spotify rejected the access token — refresh and retry, or re-run `bun run spotify:auth`.',
-      );
-    }
-
-    if (res.status === 429) {
-      if (attempt === MAX_RETRIES) {
-        throw new SpotifyTransientError(`Spotify 429 after ${MAX_RETRIES} retries`, 429);
-      }
-      const wait = parseRetryAfter(res.headers.get('Retry-After')) * 1000;
-      logger.warn('spotify: rate limited, sleeping', { url, wait });
-      await sleep(wait);
-      continue;
-    }
-
-    if (res.status >= 500 && res.status < 600) {
-      if (attempt === MAX_RETRIES) {
-        throw new SpotifyTransientError(
-          `Spotify ${res.status} after ${MAX_RETRIES} retries`,
-          res.status,
-        );
-      }
-      const wait = 2 ** attempt * BACKOFF_BASE_MS;
-      logger.warn('spotify: server error, backing off', { url, status: res.status, wait });
-      await sleep(wait);
-      continue;
-    }
-
-    return res;
+    return value;
   }
 
   throw new SpotifyTransientError('Spotify retries exhausted unexpectedly');
 };
+
+/**
+ * Reads the response body inside the retried region. A response whose headers
+ * arrive and whose body then stalls trips the same deadline as a silent server
+ * and deserves the same retry and the same transient classification; a caller
+ * reading `res.json()` afterwards would get a bare abort instead.
+ */
+export const spotifyFetchJson = async <T>(
+  url: string,
+  accessToken: string,
+  options: SpotifyFetchOptions = {},
+): Promise<SpotifyJsonResult<T>> =>
+  withRetries(url, accessToken, options, async (res) =>
+    res.ok
+      ? { ok: true as const, status: res.status, body: (await res.json()) as T }
+      : { ok: false as const, status: res.status },
+  );
+
+export const spotifyFetch = async (
+  url: string,
+  accessToken: string,
+  options: SpotifyFetchOptions = {},
+): Promise<Response> => withRetries(url, accessToken, options, async (res) => res);

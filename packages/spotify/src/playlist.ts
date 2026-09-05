@@ -1,6 +1,6 @@
 import { logger } from '@radiofy/shared';
 import { SpotifyTransientError } from './errors.ts';
-import { spotifyFetch } from './http.ts';
+import { type SpotifyJsonResult, spotifyFetchJson } from './http.ts';
 
 export const PLAYLIST_WRITE_BATCH = 100;
 const ME_PLAYLISTS_PAGE_SIZE = 50;
@@ -73,11 +73,14 @@ export const getPlaylistByName = async (
   const matches: RawPlaylistRef[] = [];
 
   while (url !== null) {
-    const res = await spotifyFetch(url, accessToken);
+    const res: SpotifyJsonResult<MePlaylistsPage> = await spotifyFetchJson<MePlaylistsPage>(
+      url,
+      accessToken,
+    );
     if (!res.ok) {
       throw new SpotifyTransientError(`Spotify ${res.status} on /me/playlists`, res.status);
     }
-    const body = (await res.json()) as MePlaylistsPage;
+    const body: MePlaylistsPage = res.body;
     for (const item of body.items) {
       if (item.name === name) matches.push(item);
     }
@@ -109,7 +112,10 @@ export const getPlaylistTracks = async (
     `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${PLAYLIST_TRACKS_PAGE_SIZE}`;
 
   while (url !== null) {
-    const res = await spotifyFetch(url, accessToken);
+    const res: SpotifyJsonResult<PlaylistTracksPage> = await spotifyFetchJson<PlaylistTracksPage>(
+      url,
+      accessToken,
+    );
     if (res.status === 404) {
       throw new PlaylistNotFoundError(`no playlist with id "${playlistId}"`);
     }
@@ -119,7 +125,7 @@ export const getPlaylistTracks = async (
         res.status,
       );
     }
-    const body = (await res.json()) as PlaylistTracksPage;
+    const body: PlaylistTracksPage = res.body;
     for (const item of body.items) {
       if (item.track === null || item.track.id === null || item.track.is_local === true) {
         logger.debug('spotify: skipping non-track playlist item', { playlistId });
@@ -161,7 +167,7 @@ export const replacePlaylistTracks = async (
   );
   const url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks`;
 
-  const clear = await spotifyFetch(url, accessToken, {
+  const clear = await spotifyFetchJson<{ snapshot_id: string }>(url, accessToken, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uris: [] }),
@@ -175,11 +181,11 @@ export const replacePlaylistTracks = async (
       clear.status,
     );
   }
-  let snapshotId = ((await clear.json()) as { snapshot_id: string }).snapshot_id;
+  let snapshotId = clear.body.snapshot_id;
 
   for (let offset = 0; offset < uris.length; offset += PLAYLIST_WRITE_BATCH) {
     const batch = uris.slice(offset, offset + PLAYLIST_WRITE_BATCH);
-    const res = await spotifyFetch(url, accessToken, {
+    const res = await spotifyFetchJson<{ snapshot_id: string }>(url, accessToken, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: batch }),
@@ -193,7 +199,7 @@ export const replacePlaylistTracks = async (
         res.status,
       );
     }
-    snapshotId = ((await res.json()) as { snapshot_id: string }).snapshot_id;
+    snapshotId = res.body.snapshot_id;
   }
 
   return { snapshotId };

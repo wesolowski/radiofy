@@ -16,6 +16,7 @@ const main = async (): Promise<void> => {
       if (outcome.kind === 'not_found') failed = true;
       if (outcome.kind === 'blocked') blocked = true;
       if (outcome.kind === 'playlist_not_found') failed = true;
+      if (outcome.kind === 'degraded') failed = true;
     } catch (err) {
       logger.error('sync: failed', {
         station,

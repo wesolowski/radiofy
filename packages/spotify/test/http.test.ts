@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { SpotifyAuthExpiredError, SpotifyTransientError } from '../src/errors.ts';
-import { spotifyFetch } from '../src/http.ts';
+import { spotifyFetch, spotifyFetchJson } from '../src/http.ts';
 
 let originalFetch: typeof globalThis.fetch;
 let calls: { url: string }[];
@@ -106,5 +106,47 @@ describe('spotifyFetch: request deadline', () => {
       spotifyFetch('https://api.spotify.com/v1/me', 'token', { timeoutMs: 30 }),
     ).rejects.toBeInstanceOf(SpotifyTransientError);
     expect(calls).toHaveLength(4);
+  });
+});
+
+describe('spotifyFetchJson', () => {
+  test('retries a response whose body stalls, then reports it as transient', async () => {
+    let calls = 0;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"tra'));
+          init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason));
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }) as typeof globalThis.fetch;
+
+    await expect(
+      spotifyFetchJson('https://api.spotify.com/v1/me', 'token', { timeoutMs: 30 }),
+    ).rejects.toBeInstanceOf(SpotifyTransientError);
+    expect(calls).toBe(4);
+  });
+
+  test('hands back the parsed body on success', async () => {
+    installFetchSequence([okJson({ hello: 'world' })]);
+
+    const result = await spotifyFetchJson<{ hello: string }>(
+      'https://api.spotify.com/v1/me',
+      'token',
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.body.hello).toBe('world');
+  });
+
+  test('reports a non-ok status without reading a body', async () => {
+    installFetchSequence([status(404)]);
+
+    const result = await spotifyFetchJson('https://api.spotify.com/v1/me', 'token');
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(404);
   });
 });
