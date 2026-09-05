@@ -10,7 +10,7 @@ low
 low
 
 ## Status
-review
+done
 
 ## Background
 RDFY-033 corrected the two station-configuration examples, but only those. The

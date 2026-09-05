@@ -10,7 +10,7 @@ medium
 high
 
 ## Status
-review
+done
 
 ## Background
 A station whose `sourceSlug` is wrong does not fail. `odsluchane.eu` answers an
