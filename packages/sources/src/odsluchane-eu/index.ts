@@ -4,20 +4,6 @@ import { buildUrl } from './url.ts';
 export const ODSLUCHANE_EU_ID = 'odsluchane-eu' as const;
 
 /**
- * Station id map for odsluchane.eu's ?r= query parameter.
- *
- * Values come from probing the site's URL pattern; see
- * docs/architecture/PROJECT_ARCHITECTURE.md → "Data Sources" for the
- * full table and how new stations are added.
- */
-export const ODSLUCHANE_EU_STATIONS = {
-  zet: '1',
-  rmf: '2',
-  eska: '3',
-  rmfmaxx: '4',
-} as const;
-
-/**
  * odsluchane.eu rejects very wide windows (time_to=24 silently truncates;
  * 12-hour windows return zero songs). Three 10-ish-hour windows cover the
  * full day reliably, with time_to=0 acting as "end of day" for the last

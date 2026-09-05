@@ -369,7 +369,7 @@ https://www.odsluchane.eu/szukaj.php?r=<station-id>&date=DD-MM-YYYY&time_from=<h
 
 Three quirks worth knowing:
 
-* `r=` is a **numeric** station id. MVP map: `1` = ZET, `2` = RMF FM, `3` = ESKA, `4` = RMF MAXX. Lookup table lives in `packages/sources/src/odsluchane-eu/index.ts`.
+* `r=` is a **numeric** station id, taken verbatim from each station's `sourceSlug` in `config/stations.json` — the four MVP stations use `1` = ZET, `2` = RMF FM, `3` = ESKA, `4` = RMF MAXX. The aggregator carries many more, so there is deliberately no list of valid ids in the code: adding a station means adding a config entry, not changing a lookup table.
 * `date=` is **DD-MM-YYYY** (Polish convention). The worker converts from the canonical YYYY-MM-DD.
 * The site rejects very wide windows — `time_to=24` silently truncates and 12-hour windows return zero songs. Three windows reliably cover a full day: `0-10`, `10-20`, `20-0` (the `time_to=0` value is the working "end of day" marker). The DB UNIQUE constraint on `(source, source_track_id, station, played_at)` silently de-duplicates the one-hour boundary overlap between adjacent windows.
 
