@@ -282,16 +282,16 @@ Committed. Defines stations and the Spotify playlist they sync into.
   {
     "id": "zet",
     "name": "ZET",
-    "source": "malopolskie-media",
-    "sourceSlug": "radio-zet",
+    "source": "odsluchane-eu",
+    "sourceSlug": "1",
     "playlistName": "Radio Zet Weekly Playlist",
     "enabled": true
   },
   {
     "id": "rmf",
     "name": "RMF FM",
-    "source": "malopolskie-media",
-    "sourceSlug": "rmf-fm",
+    "source": "odsluchane-eu",
+    "sourceSlug": "2",
     "playlistName": "Radio RMF FM Weekly Playlist",
     "enabled": true
   }
