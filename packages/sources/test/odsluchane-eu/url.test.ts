@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ODSLUCHANE_EU_STATIONS, dayUrls } from '../../src/odsluchane-eu/index.ts';
+import { dayUrls } from '../../src/odsluchane-eu/index.ts';
 import { buildUrl } from '../../src/odsluchane-eu/url.ts';
 
 describe('buildUrl', () => {
@@ -27,14 +27,5 @@ describe('dayUrls — full-day chunking', () => {
     expect(urls[0]).toContain('time_from=0&time_to=10');
     expect(urls[1]).toContain('time_from=10&time_to=20');
     expect(urls[2]).toContain('time_from=20&time_to=0');
-  });
-});
-
-describe('ODSLUCHANE_EU_STATIONS map', () => {
-  test('covers the four MVP stations', () => {
-    expect(ODSLUCHANE_EU_STATIONS['zet']).toBe('1');
-    expect(ODSLUCHANE_EU_STATIONS['rmf']).toBe('2');
-    expect(ODSLUCHANE_EU_STATIONS['eska']).toBe('3');
-    expect(ODSLUCHANE_EU_STATIONS['rmfmaxx']).toBe('4');
   });
 });

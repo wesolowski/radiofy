@@ -10,13 +10,6 @@ export const ODSLUCHANE_EU_ID = 'odsluchane-eu' as const;
  * docs/architecture/PROJECT_ARCHITECTURE.md → "Data Sources" for the
  * full table and how new stations are added.
  */
-export const ODSLUCHANE_EU_STATIONS = {
-  zet: '1',
-  rmf: '2',
-  eska: '3',
-  rmfmaxx: '4',
-} as const;
-
 /**
  * odsluchane.eu rejects very wide windows (time_to=24 silently truncates;
  * 12-hour windows return zero songs). Three 10-ish-hour windows cover the
