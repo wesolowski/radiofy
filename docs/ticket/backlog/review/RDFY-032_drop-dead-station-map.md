@@ -30,15 +30,19 @@ spent maintaining something nothing uses.
 The obvious alternative is to check an `odsluchane-eu` station's `sourceSlug`
 against the map at config load, so a typo like `"sourceSlug": "5"` fails fast
 instead of silently crawling a different station into your playlist. That
-sounds attractive and is wrong: the aggregator covers the four MVP stations
-"and 50+ more", so the map is a subset chosen for the MVP, not a registry of
-valid values. Validating against it would reject slugs that work perfectly
-well, turning a helpful check into a blocker the moment someone adds a fifth
-station — exactly the case the architecture says needs "nothing but a config
-entry, no code change".
+sounds attractive and is wrong: the map is a subset chosen for the MVP, not a
+registry of valid values. Review checked the live site rather than trusting the
+architecture document's "50+ more" — which is a claim about the *previous*
+source — and found the station selector on odsluchane.eu carries **523**
+distinct ids across national, local, TV, internet and retired groups, with
+`r=5` (Antyradio) returning a full day of rows. Validating against four entries
+would reject 519 working ids and break the documented promise that a new
+station needs "nothing but a config entry, no code change".
 
-A real fast-fail for a mistyped slug would need the aggregator's own station
-list, which is out of scope here.
+A real fast-fail for a mistyped slug is a separate problem with its own ticket:
+a wrong-but-existing number crawls another station's data into your playlist,
+and a non-numeric or unknown one returns the site's landing page with HTTP 200
+and no rows, which the crawler records as a healthy run that inserted nothing.
 
 ## Scope
 - **In scope**: delete `ODSLUCHANE_EU_STATIONS`, its export, and the test that
@@ -54,7 +58,9 @@ list, which is out of scope here.
 - `docs/architecture/PROJECT_ARCHITECTURE.md`
 
 ## Acceptance Criteria
-- [ ] `ODSLUCHANE_EU_STATIONS` no longer exists anywhere in the repository.
+- [ ] `ODSLUCHANE_EU_STATIONS` no longer exists in code or in current
+      documentation. Closed tickets and result documents keep their mentions —
+      they record what was true when they were written.
 - [ ] `dayUrls` and `buildUrl` behaviour is unchanged, and their tests still
       cover the three daily windows and the date format.
 - [ ] The architecture document names `config/stations.json` as where the
