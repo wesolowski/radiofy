@@ -17,7 +17,7 @@ most-played tracks of the rolling 7-day window.
 For each configured station the worker runs a one-shot pipeline:
 
 1. **Crawl** — fetch the previous day's playlist HTML from
-   `malopolskie-media.info`, parse it with cheerio, persist every play into a
+   `odsluchane.eu`, parse it with cheerio, persist every play into a
    local SQLite database.
 2. **Normalize** — clean up artist and title strings, fold Polish diacritics,
    produce a stable `normalizedKey` per song.
@@ -384,10 +384,14 @@ is not at `/usr/local/bin/bun`.
 
 ## Data source
 
-Crawled from [`malopolskie-media.info`](https://malopolskie-media.info/) — a
-public Polish radio playlist aggregator. The aggregator exposes a single URL
-pattern per `(station, day, hour-range)`, so one parser covers all four MVP
-stations (ZET, RMF FM, RMF MAXX, ESKA) and 50+ others.
+Crawled from [`odsluchane.eu`](https://www.odsluchane.eu/) — a public Polish
+radio playlist aggregator. It exposes a single URL pattern per
+`(station, day, hour-range)`, so one parser covers all four configured stations
+(ZET, RMF FM, RMF MAXX, ESKA) and the hundreds more the site carries.
+
+The project began on `malopolskie-media.info`, which has been unreachable
+behind a bot challenge since 2026-05. Its parser is still in the codebase and
+still works, in case that site becomes reachable again.
 
 The site is queried with conservative cadence (one daily fetch per station)
 and the worker honors all `Retry-After` headers it receives.

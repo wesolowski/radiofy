@@ -174,9 +174,10 @@ Not required for MVP.
 Contains parsers for data sources, not for radio stations.
 
 A **source** is a website that exposes playlist data. A single source can serve
-many stations via different URL parameters. The MVP relies on one source
-(`malopolskie-media.info`) that covers all four target stations and 50+ more,
-so the MVP ships with one parser, not four.
+many stations via different URL parameters. The project relies on one source
+(`odsluchane.eu`) that covers all four target stations and hundreds more, so it
+ships with one parser, not four. A second parser for the original source is
+kept for the reasons given under *malopolskie-media.info (deprecated)*.
 
 The split is intentional:
 * A station is a configuration entry (`config/stations.json`)
@@ -640,7 +641,7 @@ the file removes the override on the next run.
 {
   "overrides": [
     {
-      "match": { "source": "malopolskie-media", "source_track_id": "86665" },
+      "match": { "source": "odsluchane-eu", "source_track_id": "86665" },
       "spotify_id": "spotify:track:0jXQrPLm...",
       "note": "Aggregator entry — most specific match"
     },
@@ -963,7 +964,7 @@ Intentionally compact — full DDL lives in `packages/database/schema.ts`.
 -- Every observation from any source
 CREATE TABLE plays (
   id INTEGER PRIMARY KEY,
-  source TEXT NOT NULL,                    -- 'malopolskie-media'
+  source TEXT NOT NULL,                    -- 'odsluchane-eu'
   source_track_id TEXT NOT NULL,           -- stable per source
   station TEXT NOT NULL,                   -- 'zet'
   song_id INTEGER NOT NULL REFERENCES songs(id),
@@ -1057,7 +1058,7 @@ editor, diffable, backupable, and a single human-readable source of truth.
 
 ## One source serves many stations
 
-The MVP source (`malopolskie-media.info`) covers all four stations. New
+The active source (`odsluchane.eu`) covers all four stations. New
 stations from the same aggregator are config-only changes. A second source
 becomes a new parser package, not a fork of the first.
 
@@ -1066,7 +1067,7 @@ becomes a new parser package, not a fork of the first.
 ## Avoid unnecessary browser automation
 
 Playwright is reserved for future sources whose playlists are client-rendered.
-The MVP source serves static HTML and needs only `fetch` + `cheerio`.
+The active source serves static HTML and needs only `fetch` + `cheerio`.
 
 ---
 
