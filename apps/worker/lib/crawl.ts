@@ -26,14 +26,13 @@ const REQUEST_TIMEOUT_MS = 20_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const isTimeout = (err: unknown): boolean =>
-  err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+const isTimeout = (err: unknown): boolean => err instanceof Error && err.name === 'TimeoutError';
 
 const fetchWithRetry = async (
   url: string,
   fetchFn: typeof globalThis.fetch,
   timeoutMs: number,
-): Promise<Response> => {
+): Promise<{ status: number; ok: boolean; text: string }> => {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const wait = 2 ** attempt * BACKOFF_BASE_MS;
     try {
@@ -43,7 +42,7 @@ const fetchWithRetry = async (
         await sleep(wait);
         continue;
       }
-      return res;
+      return { status: res.status, ok: res.ok, text: res.ok ? await res.text() : '' };
     } catch (err) {
       const reason = isTimeout(err)
         ? new Error(`no answer within ${timeoutMs}ms from ${url}`)
@@ -135,8 +134,7 @@ const crawlOneDay = async (
     for (const url of urls) {
       const res = await fetchWithRetry(url, fetchFn, timeoutMs);
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-      const html = await res.text();
-      songs.push(...source.parse({ html, station: station.id, day }));
+      songs.push(...source.parse({ html: res.text, station: station.id, day }));
     }
     logger.info('crawl: parsed', { station: station.id, day, songs: songs.length });
 

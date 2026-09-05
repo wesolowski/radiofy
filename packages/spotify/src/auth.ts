@@ -44,6 +44,11 @@ const performRefresh = async (authFilePath?: string): Promise<string> => {
     },
     body,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch((err: unknown) => {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new Error(`no answer within ${REQUEST_TIMEOUT_MS}ms from ${TOKEN_URL}`);
+    }
+    throw err;
   });
   if (res.status === 400 || res.status === 401) {
     throw new SpotifyAuthExpiredError();

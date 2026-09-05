@@ -104,16 +104,18 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
 
     const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
     logger.info('chart: fetching', { chart: chart.id, url: chart.url });
-    let res: Response;
+    let html: string;
     try {
-      res = await fetch(chart.url, { signal: AbortSignal.timeout(timeoutMs) });
+      const res = await fetch(chart.url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) throw new Error(`HTTP ${res.status} from ${chart.url}`);
+      html = await res.text();
     } catch (err) {
-      const timedOut =
-        err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-      throw timedOut ? new Error(`no answer within ${timeoutMs}ms from ${chart.url}`) : err;
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        throw new Error(`no answer within ${timeoutMs}ms from ${chart.url}`);
+      }
+      throw err;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${chart.url}`);
-    const entries = parser({ html: await res.text() });
+    const entries = parser({ html });
     logger.info('chart: parsed', { chart: chart.id, entries: entries.length });
 
     if (entries.length < chart.minEntries) {

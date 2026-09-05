@@ -66,6 +66,11 @@ export const exchangeCode = async ({ code, verifier }: ExchangeInput): Promise<T
     },
     body,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch((err: unknown) => {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new Error(`no answer within ${REQUEST_TIMEOUT_MS}ms from ${TOKEN_URL}`);
+    }
+    throw err;
   });
   if (!res.ok) {
     const text = await res.text();
