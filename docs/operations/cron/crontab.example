@@ -1,41 +1,53 @@
-# Radiofy crontab — daily crawl + weekly Sunday sync.
+# Radiofy crontab — weekly refresh, daily chart, monthly housekeeping.
 #
 # Install:
 #   crontab -e                   # paste the lines below, then save & exit
 #   crontab -l                   # verify
 #
-# Two things to adjust before pasting:
-#   1. PATHS:  set RADIOFY to your checkout, and BUN to `which bun`
-#   2. TIMEZONE: CRON_TZ below pins the schedule to Europe/Warsaw regardless of
-#      the server's clock. Remove the line if your server is already on
-#      Europe/Warsaw, or change it if you want a different reference timezone.
+# Three things to adjust before pasting:
+#   1. PATHS:  set RADIOFY_ROOT to your checkout, BUN to `which bun`, and RUN
+#      to the wrapper inside that checkout
+#   2. TIMEZONE: CRON_TZ pins the schedule to Europe/Warsaw regardless of the
+#      server's clock. Remove the line if the server is already on
+#      Europe/Warsaw, or change it for a different reference timezone.
+#   3. MONITORING: put your health-check URLs in the checkout's .env as
+#      RADIOFY_HEALTHCHECK_WEEKLY and RADIOFY_HEALTHCHECK_CHART. They are
+#      looked up by name below, so the URLs never appear in this file or in
+#      `ps` output. Without them the jobs still run, silently.
 
 CRON_TZ=Europe/Warsaw
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-RADIOFY=/home/youruser/radiofy
+RADIOFY_ROOT=/home/youruser/radiofy
 BUN=/usr/local/bin/bun
-LOG=/home/youruser/radiofy/storage/logs/cron.log
+RUN=/home/youruser/radiofy/docs/operations/bin/radiofy-cron.sh
 
-# ─── Daily crawl per station — 03:00 Europe/Warsaw ──────────────────────────
-# Stations are staggered by 5 minutes so they don't all hit the aggregator at
-# the same wall-clock second. The aggregator load is trivial either way.
-0  3 * * *  cd $RADIOFY && $BUN run crawl --station=zet     >> $LOG 2>&1
-5  3 * * *  cd $RADIOFY && $BUN run crawl --station=rmf     >> $LOG 2>&1
-10 3 * * *  cd $RADIOFY && $BUN run crawl --station=rmfmaxx >> $LOG 2>&1
-15 3 * * *  cd $RADIOFY && $BUN run crawl --station=eska    >> $LOG 2>&1
+# RADIOFY_ROOT and BUN are passed through to the wrapper by cron.
 
-# ─── Weekly sync per station — Sunday 04:00 Europe/Warsaw ───────────────────
-0  4 * * 0  cd $RADIOFY && $BUN run sync --station=zet     >> $LOG 2>&1
-5  4 * * 0  cd $RADIOFY && $BUN run sync --station=rmf     >> $LOG 2>&1
-10 4 * * 0  cd $RADIOFY && $BUN run sync --station=rmfmaxx >> $LOG 2>&1
-15 4 * * 0  cd $RADIOFY && $BUN run sync --station=eska    >> $LOG 2>&1
+# ─── Weekly refresh — Sunday 04:00 Europe/Warsaw ────────────────────────────
+# Crawls the past week for every enabled station, then replaces every station
+# playlist. One job, one exit code, one health check.
+0  4 * * 0  $RUN RADIOFY_HEALTHCHECK_WEEKLY weekly
+
+# ─── Chart — daily 05:00 Europe/Warsaw ──────────────────────────────────────
+# A chart moves on its own rhythm, independent of the station schedule.
+# Remove this line if you have no chart configured in config/charts.json.
+0  5 * * *  $RUN RADIOFY_HEALTHCHECK_CHART chart
+
+# ─── Optional: daily crawl — 03:00 Europe/Warsaw ────────────────────────────
+# The weekly job already crawls the whole week, so this is not required. Add it
+# if you want ingestion to repair itself mid-week: each run re-crawls the last
+# seven days, so a day lost to a source outage is picked up the next morning
+# instead of being missed until the following Sunday.
+# 0  3 * * *  $RUN RADIOFY_HEALTHCHECK_CRAWL crawl
 
 # ─── Optional: monthly housekeeping ────────────────────────────────────────
 # 1st of the month at 05:00 Europe/Warsaw — keeps the local SQLite db small.
 # prune-audit  drops crawl_runs / playlist_sync_runs rows older than 90 days
 # prune-plays  drops the play history older than 30 days
 # sync still works fine — it only needs the rolling 7-day window.
-0  5 1 * *  cd $RADIOFY && $BUN run prune-audit >> $LOG 2>&1
-5  5 1 * *  cd $RADIOFY && $BUN run prune-plays >> $LOG 2>&1
+# No health check is configured for these: a missed housekeeping run costs
+# disk space, not data, and the unset variable makes the wrapper stay silent.
+0  5 1 * *  $RUN RADIOFY_HEALTHCHECK_HOUSEKEEPING prune-audit
+5  5 1 * *  $RUN RADIOFY_HEALTHCHECK_HOUSEKEEPING prune-plays

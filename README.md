@@ -304,30 +304,29 @@ Everything an operator needs after the code is checked out.
 
 ```
 docs/operations/
-├── runbook.md                                       # the operator guide
+├── runbook.md                                 # the operator guide
+├── bin/
+│   └── radiofy-cron.sh                        # runs one command under a dead-man switch
 ├── cron/
-│   └── crontab.example                              # Linux: daily crawl + weekly sync (recommended for most servers)
+│   └── crontab.example                        # Linux: weekly refresh + daily chart (simplest fit)
 ├── launchd/
-│   ├── com.radiofy.crawl.STATION.plist.template     # macOS: daily crawl  at 03:00 local
-│   └── com.radiofy.sync.STATION.plist.template      # macOS: weekly sync  Sundays 04:00 local
+│   ├── com.radiofy.weekly.plist.template      # macOS: weekly refresh, Sundays 04:00 local
+│   └── com.radiofy.chart.plist.template       # macOS: chart refresh, daily 05:00 local
 └── systemd/
-    ├── radiofy-crawl@.service                       # Linux: daily crawl  (parametrized by station)
-    ├── radiofy-crawl@.timer                         #        OnCalendar: *-*-* 03:00:00 Europe/Warsaw
-    ├── radiofy-sync@.service                        # Linux: weekly sync  (parametrized by station)
-    └── radiofy-sync@.timer                          #        OnCalendar: Sun *-*-* 04:00:00 Europe/Warsaw
+    ├── radiofy-weekly.{service,timer}         # Linux: OnCalendar Sun *-*-* 04:00 Europe/Warsaw
+    └── radiofy-chart.{service,timer}          # Linux: OnCalendar *-*-* 05:00 Europe/Warsaw
 ```
 
 Pick **one** scheduler. For a typical Linux server cron is the simplest fit;
 launchd is the native macOS choice; systemd-timer is for hosts where you
-already manage other systemd units. The runbook walks through installing
-each.
+already manage other systemd units. The runbook walks through installing each.
 
 ### `runbook.md`
 
 Step-by-step operator guide:
 
 - **First-time setup** — Spotify dev app, `.env`, hand-creating the target
-  Spotify playlists, filling `config/stations.json`, running
+  Spotify playlists, reviewing `config/stations.json`, running
   `bun run spotify:auth`.
 - **Server deployment** — prerequisites, the two headless-OAuth options
   (SSH port forward or local-auth + `scp`), persistent state directories,
@@ -336,34 +335,50 @@ Step-by-step operator guide:
 - **Triage workflow** — the LLM-assisted procedure for resolving unmatched
   songs through `export-unmatched` + `export-playlist`.
 - **Monthly housekeeping** — `bun run prune-audit`.
-- **Scheduling** — how to install the templates below.
+- **Scheduling** — installing the templates below.
+- **Failure notification** — setting up the dead-man switch, and proving the
+  alarm actually fires before trusting it.
 - **Recovery** — concrete steps for revoked OAuth tokens, stuck syncs,
   override-file conflicts, and DB corruption.
 
+### `bin/radiofy-cron.sh`
+
+The wrapper every scheduled job goes through. It runs one Radiofy command,
+signals a health-check URL before the run and again afterwards — success or
+failure — and exits with the command's own exit code.
+
+The URL is looked up by *variable name* in the checkout's `.env` and passed to
+`curl` on standard input, so it appears neither in the crontab nor in any
+command line. The file is read rather than sourced, so nothing in it is
+executed and nothing leaks into the worker's environment. With no URL
+configured the command still runs and nothing is sent, so the schedule works
+before monitoring exists.
+Ping failures are swallowed on purpose: a monitoring outage must not fail a run
+that worked, nor hide one that did not.
+
+It exists instead of a longer cron line because the obvious one-liner is wrong.
+In `command && curl "$URL" || curl "$URL/fail"`, a success ping that fails to
+send makes the `||` branch report a failure that never happened.
+
 ### `cron/crontab.example`
 
-A drop-in `crontab` snippet covering all four MVP stations: daily crawl at
-03:00 and weekly Sunday sync at 04:00 (both pinned to `Europe/Warsaw` via
-`CRON_TZ`), plus a monthly audit-prune. Adjust the three path variables at
-the top of the file, then `crontab -e` and paste. Recommended for typical
-Linux servers since the entire setup is one file.
+A drop-in `crontab` covering the weekly refresh (Sunday 04:00) and the daily
+chart (05:00), both pinned to `Europe/Warsaw` via `CRON_TZ`, plus monthly
+pruning and a commented-out daily crawl for mid-week self-healing. Adjust the
+path variables at the top, then `crontab -e` and paste.
 
 ### `launchd/*.plist.template`
 
-Two macOS launchd job templates: one for crawl (daily 03:00) and one for
-sync (weekly, Sunday 04:00). Both are parameterized by the literal string
-`STATION` in the file name and contents, plus the literal placeholder
-`/ABSOLUTE/PATH/TO/radiofy` for the checkout directory. The runbook shows
-the `sed` one-liner that produces a real plist from a template.
+Two macOS launchd jobs, one per scheduled command. The literal placeholder
+`/ABSOLUTE/PATH/TO/radiofy` marks the checkout directory; the runbook shows the
+`sed` one-liner that turns a template into a real plist.
 
-### `systemd/radiofy-{crawl,sync}@.{service,timer}`
+### `systemd/radiofy-{weekly,chart}.{service,timer}`
 
-The Linux equivalent. Systemd's `@.service` / `@.timer` naming means you
-instantiate them per station — `systemctl --user enable --now
-radiofy-crawl@zet.timer` creates the daily crawl job for ZET, and
-the same with `--sync@` for the weekly sync. The `OnCalendar` clauses are
-already correct; the only file you may need to edit is the `ExecStart`
-path if Bun isn't at `/usr/local/bin/bun` on your system.
+The Linux equivalent, one unit pair per scheduled command. The `OnCalendar`
+clauses are already correct and `Persistent=true` catches a job missed while the
+machine was off. The only line you may need to edit is `Environment=BUN=` if Bun
+is not at `/usr/local/bin/bun`.
 
 ---
 
