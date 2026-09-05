@@ -343,8 +343,8 @@ Three scheduler options ship in `docs/operations/`:
 
 ### Linux (cron, recommended for most servers)
 
-Open `docs/operations/cron/crontab.example`, adjust `RADIOFY`, `BUN` and `RUN`
-to match your checkout, then install:
+Open `docs/operations/cron/crontab.example`, adjust `RADIOFY_ROOT`, `BUN` and
+`RUN` to match your checkout, then install:
 
 ```bash
 crontab -e   # paste the contents, save, quit

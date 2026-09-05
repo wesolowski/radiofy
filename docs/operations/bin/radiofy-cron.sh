@@ -25,7 +25,9 @@
 # needs.
 #
 # Environment overrides:
-#   RADIOFY_ROOT      checkout to run in     (default: three levels above this file)
+#   RADIOFY_ROOT      checkout to run in     (default: three levels above this
+#                     file — set it explicitly when invoking through a symlink,
+#                     which resolves relative to the link, not its target)
 #   RADIOFY_CRON_LOG  combined log file      (default: $RADIOFY_ROOT/storage/logs/cron.log)
 #   BUN               path to the bun binary (default: bun from PATH)
 
@@ -52,7 +54,11 @@ URL="${!HEALTHCHECK_VAR:-}"
 if [ -z "$URL" ] && [ -r "$ROOT/.env" ]; then
   URL=$(
     sed -n "s/^[[:space:]]*${HEALTHCHECK_VAR}[[:space:]]*=[[:space:]]*//p" "$ROOT/.env" |
-      tail -n 1 | tr -d '\r' | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+      tail -n 1 | tr -d '\r' |
+      sed -e 's/[[:space:]]*$//' \
+          -e 's/^"\(.*\)"$/\1/' \
+          -e "s/^'\(.*\)'\$/\1/" \
+          -e 's/[[:space:]]*$//'
   )
 fi
 
