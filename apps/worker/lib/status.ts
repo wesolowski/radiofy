@@ -11,7 +11,7 @@ import { loadStations } from '@radiofy/shared';
 const STALE_THRESHOLD_HOURS = 36;
 const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
 
-export type StationHealth = 'ok' | 'stale' | 'no_data' | 'disabled';
+export type StationHealth = 'ok' | 'empty' | 'stale' | 'no_data' | 'disabled';
 
 export interface StationStatus {
   id: string;
@@ -44,14 +44,21 @@ export interface StatusOutcome {
   report: StatusReport;
 }
 
+/**
+ * A crawl that found nothing closes without an error, so counting it as healthy
+ * hides a misconfigured station: the playlist drains as the last real plays age
+ * out of the window, with nothing anywhere saying why.
+ */
 const computeHealth = (
   enabled: boolean,
   lastCrawlAt: string | null,
+  songsSeen: number | null,
   staleCutoffIso: string,
 ): StationHealth => {
   if (!enabled) return 'disabled';
   if (lastCrawlAt === null) return 'no_data';
-  return lastCrawlAt < staleCutoffIso ? 'stale' : 'ok';
+  if (lastCrawlAt < staleCutoffIso) return 'stale';
+  return songsSeen === 0 ? 'empty' : 'ok';
 };
 
 export const runStatus = (options: StatusOptions = {}): StatusOutcome => {
@@ -80,7 +87,7 @@ export const runStatus = (options: StatusOptions = {}): StatusOutcome => {
       id: s.id,
       name: s.name,
       enabled: s.enabled,
-      health: computeHealth(s.enabled, lastCrawlAt, staleCutoff),
+      health: computeHealth(s.enabled, lastCrawlAt, lastCrawl?.songsSeen ?? null, staleCutoff),
       lastCrawlAt,
       lastSyncAt: lastSync?.finishedAt ?? null,
       openUnmatched: unmatchedRepo.countOpen(db, s.id),
@@ -99,7 +106,7 @@ export const runStatus = (options: StatusOptions = {}): StatusOutcome => {
 
   let exitCode = 0;
   for (const s of stationStatuses) {
-    if (s.health === 'stale') exitCode = 1;
+    if (s.health === 'stale' || s.health === 'empty') exitCode = 1;
     if (s.health === 'no_data' && options.strict === true) exitCode = 1;
   }
   if (stuckRunsCount > 0) exitCode = 1;

@@ -172,7 +172,7 @@ const crawlOneDay = async (
       }
     }
 
-    crawlRunsRepo.close(db, run.id, now().toISOString(), inserted, null);
+    crawlRunsRepo.close(db, run.id, now().toISOString(), songs.length, null);
     logger.info('crawl: done', { station: station.id, day, songsSeen: songs.length, inserted });
     return { songsSeen: songs.length, inserted };
   } catch (err) {

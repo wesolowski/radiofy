@@ -29,3 +29,19 @@ describe('dayUrls — full-day chunking', () => {
     expect(urls[2]).toContain('time_from=20&time_to=0');
   });
 });
+
+describe('buildUrl: station id', () => {
+  test('rejects a station id that is not a number', () => {
+    expect(() => buildUrl('radio-zet', '2026-05-24')).toThrow(/radio-zet/);
+  });
+
+  test('rejects an empty station id', () => {
+    expect(() => buildUrl('', '2026-05-24')).toThrow();
+  });
+
+  test('accepts the numeric ids the site actually uses', () => {
+    for (const id of ['1', '2', '3', '4', '523']) {
+      expect(buildUrl(id, '2026-05-24')).toContain(`r=${id}`);
+    }
+  });
+});

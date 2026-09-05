@@ -10,7 +10,7 @@ medium
 high
 
 ## Status
-todo
+review
 
 ## Background
 A station whose `sourceSlug` is wrong does not fail. `odsluchane.eu` answers an
@@ -41,6 +41,12 @@ audit row without an error, and `bun run status` shows the station as `ok`.
   - Make a day that parses zero songs visible: it is a legitimate outcome for a
     station that was off air, but it should not be indistinguishable from a
     healthy crawl in `status`.
+  - Record in `crawl_runs.songs_seen` what the column says: the number of songs
+    the source offered. It currently stores the number of rows that were new,
+    so an idempotent re-crawl of days already collected writes zero — which
+    would have made the new health state fire on every healthy repeat run. No
+    consumer read the column before this ticket, so correcting it breaks
+    nothing.
 - **Out of scope (explicit)**:
   - Cross-checking a station id against the source's own station list, which is
     a network call at config load and a separate decision.
@@ -56,6 +62,8 @@ audit row without an error, and `bun run status` shows the station as `ok`.
       offending value.
 - [ ] A day that parses zero songs is distinguishable in `bun run status` from
       a day that collected plays.
+- [ ] Re-crawling days already collected records the songs the source offered,
+      not zero, so a healthy repeat run is not flagged.
 - [ ] A station that is genuinely silent for a day still completes without an
       error.
 - [ ] `bun test` passes.

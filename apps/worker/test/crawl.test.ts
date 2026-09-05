@@ -349,6 +349,31 @@ describe('runCrawl', () => {
     }
   });
 
+  test('records the songs the source offered, not the rows that were new', async () => {
+    const args = {
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn: stubFetch(html),
+    };
+
+    const first = await runCrawl(args);
+    expect(first.kind).toBe('ok');
+    if (first.kind === 'ok') expect(first.inserted).toBeGreaterThan(0);
+
+    const second = await runCrawl(args);
+    expect(second.kind).toBe('ok');
+    if (second.kind === 'ok') {
+      expect(second.inserted).toBe(0);
+      expect(second.songsSeen).toBeGreaterThan(0);
+    }
+
+    const runs = db.select().from(crawlRuns).all();
+    const latest = runs[runs.length - 1];
+    expect(latest?.songsSeen).toBeGreaterThan(0);
+  });
+
   test('does not retry a 4xx response', async () => {
     let calls = 0;
     const fetchFn = (async () => {
