@@ -46,6 +46,13 @@ forever. Nothing distinguishes "slow" from "never" in the logs or in
   - Existing retry behaviour is preserved: a timeout is a transient failure and
     is retried like any other thrown network error.
 - **Out of scope (explicit)**:
+  - Reading Spotify response bodies inside the guarded region. The deadline
+    does cover them — a stalled Spotify body aborts rather than hanging — but
+    the abort surfaces without the URL and without the transient
+    classification, because each of the five call sites handles a non-ok
+    response differently and unifying that is a change to the client's error
+    contract, not a timeout. Crawl and chart bodies are covered here; the
+    Spotify ones get their own ticket.
   - Changing retry counts, backoff shape, or which status codes are retried.
   - A global configuration surface or CLI flag for the deadline.
   - Connection-level tuning such as keep-alive or DNS timeouts.

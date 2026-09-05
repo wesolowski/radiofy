@@ -238,6 +238,37 @@ describe('runChart', () => {
     expect(playlistCalls).toEqual([]);
   });
 
+  test('leaves the playlist untouched when the page body stalls mid-transfer', async () => {
+    installFetch();
+    const withPage = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const resolved = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url;
+      if (resolved.startsWith(CHART.url)) {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('<div class="single-hit">'));
+            init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason));
+          },
+        });
+        return new Response(stream, { status: 200 });
+      }
+      return withPage(url, init);
+    }) as typeof globalThis.fetch;
+
+    await expect(
+      runChart({
+        chart: CHART.id,
+        db,
+        chartsPath,
+        overridesPath,
+        accessToken: 'token',
+        now: fakeNow,
+        timeoutMs: 40,
+      }),
+    ).rejects.toThrow(/40ms/);
+    expect(playlistCalls).toEqual([]);
+  });
+
   test('reports the playlist as missing without writing anything', async () => {
     installFetch({ playlistExists: false });
 
