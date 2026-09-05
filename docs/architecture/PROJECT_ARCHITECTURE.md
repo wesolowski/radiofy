@@ -282,22 +282,26 @@ Committed. Defines stations and the Spotify playlist they sync into.
   {
     "id": "zet",
     "name": "ZET",
-    "source": "malopolskie-media",
-    "sourceSlug": "radio-zet",
+    "source": "odsluchane-eu",
+    "sourceSlug": "1",
     "playlistName": "Radio Zet Weekly Playlist",
     "enabled": true
   },
   {
     "id": "rmf",
-    "name": "RMF FM",
-    "source": "malopolskie-media",
-    "sourceSlug": "rmf-fm",
-    "playlistName": "Radio RMF FM Weekly Playlist",
+    "name": "RMF",
+    "source": "odsluchane-eu",
+    "sourceSlug": "2",
+    "playlistName": "Radio RMF Weekly Playlist",
     "enabled": true
   }
 ]
 ```
 
+* `sourceSlug` is the source's own station identifier, passed through
+  verbatim. For `odsluchane-eu` that is the numeric `r=` parameter in its
+  URLs — the site carries hundreds of stations, so there is no list of valid
+  values in the code; see *Data Sources* below.
 * `playlistName` is the **lookup key** into the user's Spotify library. The
   worker resolves it to a playlist ID at runtime via the Spotify Web API
   (paginates `/v1/me/playlists`, finds the first match by exact name). See

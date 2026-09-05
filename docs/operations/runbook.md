@@ -38,7 +38,7 @@ LOG_LEVEL=info
 
 ### 4. Create the target playlists in Spotify
 
-For each station the worker will sync, create an empty playlist in Spotify (Web or Desktop client). The exact name must match what goes into `config/stations.json`. Recommended names: `Radio Zet Weekly Playlist`, `Radio RMF FM Weekly Playlist`, etc.
+For each station the worker will sync, create an empty playlist in Spotify (Web or Desktop client). The exact name must match what goes into `config/stations.json`. The names shipped in `config/stations.json` are `Radio Zet Weekly Playlist`, `Radio Eska Weekly Playlist`, `Radio RMF Weekly Playlist` and `Radio RMFMaxx Weekly Playlist` — either create those, or change the file to match names you prefer.
 
 ### 5. Review `config/stations.json`
 
@@ -47,13 +47,18 @@ For each station the worker will sync, create an empty playlist in Spotify (Web 
   {
     "id": "zet",
     "name": "ZET",
-    "source": "malopolskie-media",
-    "sourceSlug": "radio-zet",
+    "source": "odsluchane-eu",
+    "sourceSlug": "1",
     "playlistName": "Radio Zet Weekly Playlist",
     "enabled": true
   }
 ]
 ```
+
+`sourceSlug` is the aggregator's own station number — the `r=` parameter in its
+URLs. The four configured stations use `1` = ZET, `2` = RMF FM, `3` = ESKA,
+`4` = RMF MAXX; the site carries many more, so a new station needs only its
+number here and no code change.
 
 Repeat per station. Use `"enabled": false` to keep a station configured but skipped by the scheduler.
 
