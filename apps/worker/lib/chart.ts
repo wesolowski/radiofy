@@ -11,6 +11,8 @@ import {
 } from '@radiofy/spotify';
 
 const OVERLAP_CUTOFF_MS = 5 * 60 * 1000;
+/** A chart page answers in well under a second; this only bounds a hang. */
+const REQUEST_TIMEOUT_MS = 20_000;
 const OVERRIDES_PATH = 'storage/overrides.json';
 
 export interface ChartOptions {
@@ -19,6 +21,7 @@ export interface ChartOptions {
   chartsPath?: string;
   overridesPath?: string;
   accessToken?: string;
+  timeoutMs?: number;
   now?: () => Date;
 }
 
@@ -99,10 +102,20 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
     const overrides: OverrideTable = loadOverrides(options.overridesPath ?? OVERRIDES_PATH);
     const accessToken = options.accessToken ?? (await getAccessToken());
 
+    const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
     logger.info('chart: fetching', { chart: chart.id, url: chart.url });
-    const res = await fetch(chart.url);
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${chart.url}`);
-    const entries = parser({ html: await res.text() });
+    let html: string;
+    try {
+      const res = await fetch(chart.url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) throw new Error(`HTTP ${res.status} from ${chart.url}`);
+      html = await res.text();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'TimeoutError') {
+        throw new Error(`no answer within ${timeoutMs}ms from ${chart.url}`);
+      }
+      throw err;
+    }
+    const entries = parser({ html });
     logger.info('chart: parsed', { chart: chart.id, entries: entries.length });
 
     if (entries.length < chart.minEntries) {

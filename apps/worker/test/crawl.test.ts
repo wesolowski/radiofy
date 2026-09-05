@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   type Db,
   applyMigrations,
+  crawlRuns,
   crawlRunsRepo,
   openInMemoryDb,
   playsRepo,
@@ -272,6 +273,80 @@ describe('runCrawl', () => {
     expect(outcome.kind).toBe('ok');
     if (outcome.kind === 'ok') expect(outcome.daysFailed).toBe(0);
     expect(calls).toBe(2);
+  });
+
+  test('aborts a request that never answers and fails only that day', async () => {
+    let calls = 0;
+    const hangingFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn: hangingFetch,
+      timeoutMs: 40,
+    });
+
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysFailed).toBe(1);
+    expect(calls).toBe(3);
+    const stuck = crawlRunsRepo.findStuckOlderThan(db, '9999-12-31T00:00:00.000Z');
+    expect(stuck).toEqual([]);
+
+    const [run] = db.select().from(crawlRuns).all();
+    expect(run?.error).toMatch(/no answer within 40ms from https?:\/\//);
+  });
+
+  test('aborts and retries when the headers arrive but the body stalls', async () => {
+    let calls = 0;
+    const stalledBody = (async (_url: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('<html><table class="table">'));
+          init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason));
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn: stalledBody,
+      timeoutMs: 40,
+    });
+
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') expect(outcome.daysFailed).toBe(1);
+    expect(calls).toBe(3);
+    const [run] = db.select().from(crawlRuns).all();
+    expect(run?.error).toMatch(/no answer within 40ms/);
+  });
+
+  test('a request answering within the deadline is unaffected', async () => {
+    const outcome = await runCrawl({
+      station: 'radio-zet',
+      day: '2026-05-24',
+      db,
+      stationsPath,
+      fetchFn: stubFetch(html),
+      timeoutMs: 5_000,
+    });
+
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind === 'ok') {
+      expect(outcome.daysFailed).toBe(0);
+      expect(outcome.inserted).toBeGreaterThan(0);
+    }
   });
 
   test('does not retry a 4xx response', async () => {

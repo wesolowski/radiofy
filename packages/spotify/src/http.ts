@@ -3,6 +3,13 @@ import { SpotifyAuthExpiredError, SpotifyTransientError } from './errors.ts';
 
 const MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 500;
+/**
+ * Bounds a request that is accepted and then never answered. Lower than the
+ * scraped sources' deadline because Spotify's API is homogeneous and fast, and
+ * because sync resolves one request per uncached song — four attempts each adds
+ * up quickly when the API stops answering.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -12,8 +19,9 @@ const parseRetryAfter = (value: string | null): number => {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 1;
 };
 
-export interface SpotifyFetchOptions extends Omit<RequestInit, 'headers'> {
+export interface SpotifyFetchOptions extends Omit<RequestInit, 'headers' | 'signal'> {
   headers?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 export const spotifyFetch = async (
@@ -21,11 +29,25 @@ export const spotifyFetch = async (
   accessToken: string,
   options: SpotifyFetchOptions = {},
 ): Promise<Response> => {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...init } = options;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const res = await fetch(url, {
-      ...options,
-      headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        ...init,
+        headers: { ...options.headers, Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'TimeoutError')) throw err;
+      if (attempt === MAX_RETRIES) {
+        throw new SpotifyTransientError(`Spotify did not answer within ${timeoutMs}ms: ${url}`);
+      }
+      const wait = 2 ** attempt * BACKOFF_BASE_MS;
+      logger.warn('spotify: no answer, backing off', { url, timeoutMs, wait });
+      await sleep(wait);
+      continue;
+    }
 
     if (res.status === 401) {
       throw new SpotifyAuthExpiredError(
