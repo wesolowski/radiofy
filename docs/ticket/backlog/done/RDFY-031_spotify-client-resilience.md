@@ -10,7 +10,7 @@ medium
 medium
 
 ## Status
-review
+done
 
 ## Background
 RDFY-030 gave every outbound request a deadline, but two gaps in the Spotify
