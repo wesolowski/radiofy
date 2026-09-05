@@ -18,6 +18,12 @@ import { loadStation } from './station-loader.ts';
 
 const OVERLAP_CUTOFF_MS = 5 * 60 * 1000;
 const OVERRIDES_PATH = 'storage/overrides.json';
+/**
+ * A run that cannot reach Spotify should stop, not work through the backlog one
+ * doomed lookup at a time: each one costs four attempts plus backoff, so a few
+ * hundred songs turn a dead API into hours of grinding.
+ */
+const MAX_CONSECUTIVE_LOOKUP_FAILURES = 5;
 
 export interface SyncOptions {
   station: string;
@@ -25,11 +31,13 @@ export interface SyncOptions {
   stationsPath?: string;
   overridesPath?: string;
   accessToken?: string;
+  maxConsecutiveLookupFailures?: number;
   now?: () => Date;
 }
 
 export type SyncOutcome =
   | { kind: 'ok'; tracksWritten: number; snapshotId: string }
+  | { kind: 'degraded'; consecutiveFailures: number }
   | { kind: 'no_songs' }
   | { kind: 'playlist_not_found'; name: string }
   | { kind: 'disabled' }
@@ -102,7 +110,9 @@ export const runSync = async (options: SyncOptions): Promise<SyncOutcome> => {
     );
     logger.info('sync: candidates', { station: station.id, count: candidates.length });
 
+    const maxFailures = options.maxConsecutiveLookupFailures ?? MAX_CONSECUTIVE_LOOKUP_FAILURES;
     const resolved = new Map<string, { plays: number; lastSeenAt: string }>();
+    let consecutiveFailures = 0;
     for (const row of candidates) {
       const { rawSong, normalized } = buildContext(row);
       const outcome = await resolveSong({
@@ -114,6 +124,20 @@ export const runSync = async (options: SyncOptions): Promise<SyncOutcome> => {
         rawSong,
         normalized,
       });
+      if (outcome.kind === 'api_error') {
+        consecutiveFailures++;
+        if (consecutiveFailures >= maxFailures) {
+          const msg = `${consecutiveFailures} lookups in a row failed against Spotify — stopping without replacing the playlist`;
+          logger.error('sync: giving up on a failing Spotify', {
+            station: station.id,
+            consecutiveFailures,
+          });
+          syncRunsRepo.close(db, run.id, now().toISOString(), null, msg);
+          return { kind: 'degraded', consecutiveFailures };
+        }
+      } else {
+        consecutiveFailures = 0;
+      }
       if (outcome.kind === 'override' || outcome.kind === 'cache' || outcome.kind === 'auto') {
         const prev = resolved.get(outcome.spotifyTrackId);
         if (prev === undefined) {

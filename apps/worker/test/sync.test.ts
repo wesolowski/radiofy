@@ -147,6 +147,43 @@ describe('runSync', () => {
     expect(postBody.uris[1]).toBe('spotify:track:bbbbbbbbbbbbbbbbbbbbbb');
   });
 
+  test('stops instead of grinding when Spotify keeps failing', async () => {
+    for (let n = 0; n < 4; n++) {
+      const id = seedSong(`x${n}|y${n}`, `Artist ${n}`, `Title ${n}`);
+      seedPlay(id, `2026-05-24T0${n}:00:00.000Z`, `90${n}`);
+    }
+
+    let searches = 0;
+    installFetch(async (url) => {
+      if (url.includes('/v1/search')) {
+        searches++;
+        return new Response('{}', { status: 429, headers: { 'Retry-After': '0' } });
+      }
+      if (url.includes('/v1/me/playlists')) {
+        return jsonResponse({
+          items: [{ id: 'PID', name: 'Radio Zet Weekly Playlist' }],
+          next: null,
+        });
+      }
+      return jsonResponse({}, 404);
+    });
+
+    const outcome = await runSync({
+      station: 'radio-zet',
+      db,
+      stationsPath,
+      overridesPath,
+      accessToken: 'token',
+      now: fakeNow,
+      maxConsecutiveLookupFailures: 2,
+    });
+
+    expect(outcome.kind).toBe('degraded');
+    if (outcome.kind === 'degraded') expect(outcome.consecutiveFailures).toBe(2);
+    expect(fetchCalls.some((c) => c.method === 'PUT')).toBe(false);
+    expect(searches).toBeLessThan(4 * 4);
+  }, 20_000);
+
   test('returns no_songs when nothing in the window resolves — no playlist call', async () => {
     let putCalled = false;
     installFetch(async (url, method) => {

@@ -1,6 +1,6 @@
 import { asciiFold } from '@radiofy/normalizer';
 import type { NormalizedSong } from '@radiofy/shared';
-import { spotifyFetch } from './http.ts';
+import { spotifyFetchJson } from './http.ts';
 import { type ScoredCandidate, type SpotifyTrackPayload, scoreCandidates } from './score.ts';
 
 const SEARCH_URL = 'https://api.spotify.com/v1/search';
@@ -26,10 +26,9 @@ const fetchItems = async (
   title: string,
   accessToken: string,
 ): Promise<SpotifyTrackPayload[]> => {
-  const res = await spotifyFetch(queryFor(artist, title), accessToken);
+  const res = await spotifyFetchJson<SearchResponse>(queryFor(artist, title), accessToken);
   if (!res.ok) return [];
-  const body = (await res.json()) as SearchResponse;
-  return body.tracks?.items ?? [];
+  return res.body.tracks?.items ?? [];
 };
 
 export interface SearchOptions {
