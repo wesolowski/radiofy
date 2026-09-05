@@ -38,7 +38,7 @@ LOG_LEVEL=info
 
 ### 4. Create the target playlists in Spotify
 
-For each station the worker will sync, create an empty playlist in Spotify (Web or Desktop client). The exact name must match what goes into `config/stations.json`. Recommended names: `Radio Zet Weekly Playlist`, `Radio RMF FM Weekly Playlist`, etc.
+For each station the worker will sync, create an empty playlist in Spotify (Web or Desktop client). The exact name must match what goes into `config/stations.json`. The names shipped in `config/stations.json` are `Radio Zet Weekly Playlist`, `Radio Eska Weekly Playlist`, `Radio RMF Weekly Playlist` and `Radio RMFMaxx Weekly Playlist` — either create those, or change the file to match names you prefer.
 
 ### 5. Review `config/stations.json`
 
