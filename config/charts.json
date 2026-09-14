@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "eska-goraca20",
+    "name": "Eska Gorąca 20",
+    "source": "eska-goraca20",
+    "url": "https://www.eska.pl/goraca20/",
+    "playlistName": "Eska Gorąca",
+    "minEntries": 20,
+    "enabled": true
+  }
+]
