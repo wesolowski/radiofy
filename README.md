@@ -219,6 +219,23 @@ exits `0`).
 Use it when: you want to know if the cron actually ran, or as a monitoring
 probe (any non-zero exit means something needs attention).
 
+#### `bun run report`
+
+Writes `storage/report.html`: one page showing when each playlist was last
+updated, the chart's recent runs, the twenty most-played songs of the rolling
+week per station with their play counts, and the ten songs most often not found
+on Spotify. Open it in a browser; regenerate it to refresh.
+
+The page is self-contained — no fonts, scripts or styles are fetched — so it
+opens on a machine with no internet. It lands under `storage/`, which is
+gitignored, because it contains listening history and must never be committed.
+
+Only configured stations and charts appear. Rows left behind by station ids
+that are no longer configured are skipped, so a retired station cannot top the
+not-found table.
+
+Use it when: you want the week at a glance rather than three console commands.
+
 #### `bun run prune-audit [--keep-days=90] [--dry-run]`
 
 Deletes `crawl_runs` and `playlist_sync_runs` rows older than `--keep-days`

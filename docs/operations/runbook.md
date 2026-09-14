@@ -97,6 +97,23 @@ Exit code `0` means every enabled station crawled within the last 36 hours and t
 
 ---
 
+## Looking at the week
+
+```bash
+bun run report          # writes storage/report.html
+```
+
+Open the file in a browser. On a headless machine, serve it over the local
+network for as long as you need it:
+
+```bash
+cd storage && bun -e 'Bun.serve({port:8791,fetch:()=>new Response(Bun.file("report.html"),{headers:{"content-type":"text/html; charset=utf-8"}})})'
+```
+
+The page is a snapshot, not a live view: run the command again to refresh it,
+and run a crawl first if the rolling week is empty — the most-played tables are
+built from the same seven-day window `sync` uses.
+
 ## Triage workflow — unmatched songs
 
 When the auto-matcher can't place a song, it's added to the `unmatched_songs` table. Resolve them with the LLM-assisted authoring workflow (full details in `docs/architecture/PROJECT_ARCHITECTURE.md → Manual Overrides → Authoring workflow`):

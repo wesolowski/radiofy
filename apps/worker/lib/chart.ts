@@ -152,14 +152,14 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
     if (apiErrors > 0) {
       const msg = `${apiErrors} of ${entries.length} lookups failed against Spotify — leaving the playlist untouched`;
       logger.error('chart: degraded lookups', { chart: chart.id, apiErrors });
-      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg);
+      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg, entries.length);
       return { kind: 'degraded', entriesParsed: entries.length, apiErrors };
     }
 
     if (uris.length === 0) {
       const msg = 'no entry resolved to a Spotify track — leaving the playlist untouched';
       logger.warn('chart: nothing resolved — skipping playlist replace', { chart: chart.id });
-      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg);
+      syncRunsRepo.close(db, run.id, now().toISOString(), null, msg, entries.length);
       return { kind: 'no_songs', entriesParsed: entries.length };
     }
 
@@ -180,7 +180,7 @@ export const runChart = async (options: ChartOptions): Promise<ChartOutcome> => 
     }
 
     const result = await replacePlaylistTracks(playlistId, uris, accessToken);
-    syncRunsRepo.close(db, run.id, now().toISOString(), uris.length, null);
+    syncRunsRepo.close(db, run.id, now().toISOString(), uris.length, null, entries.length);
     logger.info('chart: done', {
       chart: chart.id,
       entriesParsed: entries.length,

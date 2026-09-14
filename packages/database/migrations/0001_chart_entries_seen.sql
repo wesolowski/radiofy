@@ -1,0 +1,1 @@
+ALTER TABLE `playlist_sync_runs` ADD `entries_seen` integer;

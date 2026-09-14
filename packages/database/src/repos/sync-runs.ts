@@ -18,12 +18,22 @@ export const syncRunsRepo = {
     finishedAtIso: string,
     tracksWritten: number | null,
     error: string | null,
+    entriesSeen: number | null = null,
   ): void => {
     db.update(playlistSyncRuns)
-      .set({ finishedAt: finishedAtIso, tracksWritten, error })
+      .set({ finishedAt: finishedAtIso, tracksWritten, entriesSeen, error })
       .where(eq(playlistSyncRuns.id, id))
       .run();
   },
+
+  recent: (db: Db, station: string, limit: number): PlaylistSyncRun[] =>
+    db
+      .select()
+      .from(playlistSyncRuns)
+      .where(and(eq(playlistSyncRuns.station, station), isNotNull(playlistSyncRuns.finishedAt)))
+      .orderBy(desc(playlistSyncRuns.finishedAt))
+      .limit(limit)
+      .all(),
 
   findOpen: (db: Db, station: string): PlaylistSyncRun[] =>
     db

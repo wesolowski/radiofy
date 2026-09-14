@@ -82,6 +82,7 @@ export const playlistSyncRuns = sqliteTable('playlist_sync_runs', {
   startedAt: text('started_at').notNull(),
   finishedAt: text('finished_at'),
   tracksWritten: integer('tracks_written'),
+  entriesSeen: integer('entries_seen'),
   error: text('error'),
 });
 
