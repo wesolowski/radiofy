@@ -3,6 +3,7 @@ import { type Db, applyMigrations, openInMemoryDb } from '../src/db.ts';
 import { crawlRunsRepo } from '../src/repos/crawl-runs.ts';
 import { matchesRepo } from '../src/repos/matches.ts';
 import { songsRepo } from '../src/repos/songs.ts';
+import { syncRunsRepo } from '../src/repos/sync-runs.ts';
 import { unmatchedRepo } from '../src/repos/unmatched.ts';
 
 let db: Db;
@@ -131,5 +132,38 @@ describe('crawlRunsRepo', () => {
     const stuck = crawlRunsRepo.findStuckOlderThan(db, '2026-05-24T03:00:00.000Z');
     expect(stuck).toHaveLength(1);
     expect(stuck[0]?.startedAt).toBe('2026-05-24T01:00:00.000Z');
+  });
+});
+
+describe('syncRunsRepo.recent', () => {
+  test('returns the newest closed runs first, failures included', () => {
+    const db = openInMemoryDb();
+    applyMigrations(db, 'packages/database/migrations');
+
+    const a = syncRunsRepo.open(db, { station: 'chart', startedAt: '2026-09-01T10:00:00.000Z' });
+    syncRunsRepo.close(db, a.id, '2026-09-01T10:00:05.000Z', 40, null);
+    const b = syncRunsRepo.open(db, { station: 'chart', startedAt: '2026-09-02T10:00:00.000Z' });
+    syncRunsRepo.close(db, b.id, '2026-09-02T10:00:05.000Z', null, 'playlist missing');
+    syncRunsRepo.open(db, { station: 'chart', startedAt: '2026-09-03T10:00:00.000Z' });
+    syncRunsRepo.open(db, { station: 'other', startedAt: '2026-09-02T11:00:00.000Z' });
+
+    const runs = syncRunsRepo.recent(db, 'chart', 5);
+
+    expect(runs).toHaveLength(2);
+    expect(runs[0]?.error).toBe('playlist missing');
+    expect(runs[1]?.tracksWritten).toBe(40);
+  });
+
+  test('honours the limit', () => {
+    const db = openInMemoryDb();
+    applyMigrations(db, 'packages/database/migrations');
+    for (let i = 1; i <= 4; i++) {
+      const r = syncRunsRepo.open(db, {
+        station: 'chart',
+        startedAt: `2026-09-0${i}T10:00:00.000Z`,
+      });
+      syncRunsRepo.close(db, r.id, `2026-09-0${i}T10:00:05.000Z`, i, null);
+    }
+    expect(syncRunsRepo.recent(db, 'chart', 2)).toHaveLength(2);
   });
 });
