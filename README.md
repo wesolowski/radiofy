@@ -7,8 +7,10 @@ from a public aggregator, deduplicates and matches each song against the
 Spotify catalogue, and replaces a per-station Spotify playlist with the
 most-played tracks of the rolling 7-day window.
 
-> **Status**: MVP implementation complete. All 13 backlog tickets are merged
-> and the worker runs end-to-end against the configured Spotify account.
+> **Status**: running end-to-end against a configured Spotify account. Nothing
+> is scheduled out of the box — installing a scheduler and a dead-man switch is
+> the last step, and it is described in
+> [`docs/operations/runbook.md`](docs/operations/runbook.md).
 
 ---
 
@@ -27,6 +29,22 @@ For each configured station the worker runs a one-shot pipeline:
 4. **Replace** — once a week, group the rolling-7-day plays by resolved
    Spotify track, sort by play count, clear the target Spotify playlist,
    and re-append every resolved track in batches of 100.
+
+### Two kinds of playlist
+
+The four station playlists are built from a **play log**: what actually went on
+air, collected day by day, deduplicated across the week and ranked by how often
+each song ran.
+
+A chart playlist is built from a **ranking**. `bun run chart` reads a chart page
+— Eska Gorąca 20 — and writes its published order straight through: the ranked
+twenty first, then the suggestions listed below them. Nothing is re-sorted,
+because the order is the content.
+
+The two share the matcher, the search cache and the corrections file, so a song
+corrected once is corrected for both. They are configured separately on
+purpose: charts live in `config/charts.json`, never in `config/stations.json`,
+so no command that works across all stations can reach a chart playlist.
 
 A separate workflow lets you resolve unmatched songs by hand: dump the open
 backlog as CSV, find the songs in Spotify and drop them into a "manual
@@ -290,17 +308,25 @@ bun install
 cp .env.example .env
 # fill SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET from your Spotify Developer Dashboard
 
-# 3. Create the target Spotify playlists by hand
-#    (one per station, the exact name goes into config/stations.json)
+# 3. Create the target Spotify playlists by hand.
+#    config/stations.json ships with four stations; create a playlist for each
+#    under the exact name listed there, or change the names to ones you prefer.
+#    The worker never creates a playlist itself.
 
-# 4. Edit config/stations.json — list each station with its source slug
-#    and the human-readable name of its Spotify playlist
+# 4. Optional: to sync a chart as well, create one more playlist and add an
+#    entry to config/charts.json, which ships empty.
 
 # 5. One-time OAuth
 bun run spotify:auth
 
-# 6. First sync
-bun run sync --station=zet
+# 6. Collect a week and fill every station playlist
+bun run weekly
+
+# 7. Optional: fill the chart playlist
+bun run chart
+
+# 8. See what happened
+bun run report      # writes storage/report.html — open it in a browser
 ```
 
 Once that works, install a scheduler — templates are in
